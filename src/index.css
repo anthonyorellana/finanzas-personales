@@ -2,6 +2,7 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 :root {
@@ -21,20 +22,80 @@
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
   min-height: 100vh;
+  overflow-x: hidden;
 }
+
+input, select, button {
+  font-family: inherit;
+  -webkit-appearance: none;
+}
+
+input[type="number"] { -moz-appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-/* Responsive */
-@media (max-width: 768px) {
-  .sidebar { display: none !important; }
-  .main-content { margin-left: 0 !important; padding: 16px !important; }
-  .bottom-nav { display: flex !important; }
+
+/* ── LAYOUT BASE ── */
+.app-layout {
+  display: block;
+  min-height: 100vh;
 }
 
+.sidebar {
+  display: none;
+}
+
+.main-content {
+  width: 100%;
+  padding: 16px;
+  padding-bottom: 90px;
+}
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 999;
+}
+
+/* ── DESKTOP (>768px) ── */
 @media (min-width: 769px) {
-  .bottom-nav { display: none !important; }
+  .app-layout {
+    display: flex;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 220px;
+    min-width: 220px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    position: fixed;
+    top: 0; left: 0;
+    height: 100vh;
+    z-index: 100;
+  }
+
+  .main-content {
+    margin-left: 220px;
+    padding: 32px;
+    padding-bottom: 32px;
+  }
+
+  .bottom-nav {
+    display: none;
+  }
 }

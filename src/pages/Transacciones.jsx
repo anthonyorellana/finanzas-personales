@@ -280,34 +280,36 @@ function parsearExcel(e) {
         </div>
       </div>
 
-      {/* Lista */}
+  {/* Lista */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {filtradas.map(t => (
           <div key={t.id} style={{
             background: 'var(--bg2)', border: '1px solid var(--border)',
-            borderRadius: '12px', padding: '14px 16px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+            borderRadius: '12px', padding: '12px 14px',
+            display: 'flex', flexDirection: 'column', gap: '6px',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '13px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>{t.fecha}</div>
-              <div style={{ fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {t.descripcion || t.tipo}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text2)' }}>{t.fecha}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text2)', background: 'var(--bg3)', padding: '2px 6px', borderRadius: '4px' }}>
+                  {t.cuentas?.nombre}
+                </span>
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text2)', whiteSpace: 'nowrap' }}>
-                {t.cuentas?.nombre}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{
+                  fontWeight: '700', fontSize: '14px',
+                  color: t.importe > 0 ? 'var(--green)' : 'var(--red)',
+                }}>
+                  {t.importe > 0 ? '+' : ''}{fmt(t.importe)}
+                </span>
+                <button onClick={() => eliminar(t.id)} style={{
+                  background: 'none', border: 'none', color: 'var(--text2)',
+                  cursor: 'pointer', fontSize: '14px', padding: '2px',
+                }}>🗑️</button>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
-                fontWeight: '700', fontSize: '15px', whiteSpace: 'nowrap',
-                color: t.importe > 0 ? 'var(--green)' : 'var(--red)',
-              }}>
-                {t.importe > 0 ? '+' : ''}{fmt(t.importe)}
-              </div>
-              <button onClick={() => eliminar(t.id)} style={{
-                background: 'none', border: 'none', color: 'var(--text2)',
-                cursor: 'pointer', fontSize: '16px', padding: '2px',
-              }}>🗑️</button>
+            <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: '1.4' }}>
+              {t.descripcion || t.tipo}
             </div>
           </div>
         ))}
