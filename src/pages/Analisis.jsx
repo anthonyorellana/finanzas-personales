@@ -1,32 +1,67 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts'
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  LineChart, Line, Legend, PieChart, Pie, Cell
+} from 'recharts'
 
 const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
 
+const COLORES = [
+  '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
+  '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#14b8a6',
+  '#a855f7', '#eab308', '#64748b', '#10b981', '#6366f1',
+]
+
 export default function Analisis() {
   const [meses, setMeses] = useState([])
+  const [transacciones, setTransacciones] = useState([])
+  const [categorias, setCategorias] = useState([])
   const [loading, setLoading] = useState(true)
+  const [filtroMes, setFiltroMes] = useState('')
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data } = await supabase.from('meses').select('*').order('mes')
-    setMeses(data || [])
+    const [{ data: m }, { data: t }, { data: c }] = await Promise.all([
+      supabase.from('meses').select('*').order('mes'),
+      supabase.from('transacciones').select('*').order('fecha', { ascending: false }),
+      supabase.from('categorias').select('*'),
+    ])
+    setMeses(m || [])
+    setTransacciones(t || [])
+    setCategorias(c || [])
     setLoading(false)
   }
 
-  const datos = meses.map(m => ({
+  const totalIngresos = meses.reduce((s, m) => s + Number(m.ingresos_estimados), 0)
+  const totalGastos = meses.reduce((s, m) => s + Number(m.presupuesto_gastos), 0)
+  const totalAhorro = totalIngresos - totalGastos
+  const tasaMedia = totalIngresos > 0 ? ((totalAhorro / totalIngresos) * 100).toFixed(1) : 0
+
+  const datosMeses = meses.map(m => ({
     mes: m.mes.replace(' 2025', '').replace(' 2026', ''),
     Ingresos: Number(m.ingresos_estimados),
     Gastos: Number(m.presupuesto_gastos),
     Ahorro: Number(m.ingresos_estimados) - Number(m.presupuesto_gastos),
   }))
 
-  const totalIngresos = meses.reduce((s, m) => s + Number(m.ingresos_estimados), 0)
-  const totalGastos = meses.reduce((s, m) => s + Number(m.presupuesto_gastos), 0)
-  const totalAhorro = totalIngresos - totalGastos
-  const tasaMedia = totalIngresos > 0 ? ((totalAhorro / totalIngresos) * 100).toFixed(1) : 0
+  // Gastos por categoría
+  const txFiltradas = transacciones.filter(t => {
+    if (filtroMes && t.mes !== filtroMes) return false
+    return t.importe < 0 && t.categoria
+  })
+
+  const porCategoria = categorias.map(cat => {
+    const total = txFiltradas
+      .filter(t => t.categoria === cat.nombre)
+      .reduce((s, t) => s + Math.abs(t.importe), 0)
+    return { nombre: cat.nombre, emoji: cat.emoji, total }
+  }).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
+
+  const totalCategorizado = porCategoria.reduce((s, c) => s + c.total, 0)
+
+  const mesesDisponibles = [...new Set(transacciones.map(t => t.mes).filter(Boolean))].sort().reverse()
 
   const tooltipStyle = {
     backgroundColor: 'var(--bg2)',
@@ -50,11 +85,11 @@ export default function Analisis() {
           { label: '📊 Tasa ahorro media', value: `${tasaMedia}%`, color: 'var(--purple)' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{
-            flex: 1, minWidth: '150px', background: 'var(--bg2)',
-            border: '1px solid var(--border)', borderRadius: '16px', padding: '20px',
+            flex: 1, minWidth: '140px', background: 'var(--bg2)',
+            border: '1px solid var(--border)', borderRadius: '16px', padding: '16px',
           }}>
-            <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>{label}</div>
-            <div style={{ fontSize: '22px', fontWeight: '700', color }}>{value}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '8px' }}>{label}</div>
+            <div style={{ fontSize: '20px', fontWeight: '700', color }}>{value}</div>
           </div>
         ))}
       </div>
@@ -65,9 +100,9 @@ export default function Analisis() {
         borderRadius: '16px', padding: '20px', marginBottom: '20px',
       }}>
         <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '20px' }}>📊 Ingresos vs Gastos</div>
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={datos} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-            <XAxis dataKey="mes" tick={{ fill: '#8b8fa8', fontSize: 12 }} axisLine={false} tickLine={false} />
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={datosMeses} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+            <XAxis dataKey="mes" tick={{ fill: '#8b8fa8', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: '#8b8fa8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}€`} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v) => fmt(v)} />
             <Legend wrapperStyle={{ fontSize: '13px' }} />
@@ -83,14 +118,84 @@ export default function Analisis() {
         borderRadius: '16px', padding: '20px', marginBottom: '20px',
       }}>
         <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '20px' }}>💾 Ahorro mensual</div>
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={datos} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-            <XAxis dataKey="mes" tick={{ fill: '#8b8fa8', fontSize: 12 }} axisLine={false} tickLine={false} />
+        <ResponsiveContainer width="100%" height={180}>
+          <LineChart data={datosMeses} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+            <XAxis dataKey="mes" tick={{ fill: '#8b8fa8', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: '#8b8fa8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}€`} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v) => fmt(v)} />
             <Line type="monotone" dataKey="Ahorro" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Gastos por categoría */}
+      <div style={{
+        background: 'var(--bg2)', border: '1px solid var(--border)',
+        borderRadius: '16px', padding: '20px', marginBottom: '20px',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ fontSize: '15px', fontWeight: '600' }}>🏷️ Gastos por categoría</div>
+          <select value={filtroMes} onChange={e => setFiltroMes(e.target.value)}
+            style={{
+              background: 'var(--bg3)', border: '1px solid var(--border)',
+              borderRadius: '8px', padding: '6px 12px', color: 'var(--text)', fontSize: '13px',
+            }}>
+            <option value="">Todos los meses</option>
+            {mesesDisponibles.map(m => <option key={m}>{m}</option>)}
+          </select>
+        </div>
+
+        {porCategoria.length === 0 ? (
+          <div style={{ textAlign: 'center', color: 'var(--text2)', padding: '40px' }}>
+            No hay transacciones categorizadas aún.<br />
+            <span style={{ fontSize: '12px' }}>Ve a Movimientos y pulsa 🏷️ en cada transacción.</span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            {/* Donut */}
+            <div style={{ flex: '0 0 auto' }}>
+              <ResponsiveContainer width={180} height={180}>
+                <PieChart>
+                  <Pie
+                    data={porCategoria}
+                    dataKey="total"
+                    nameKey="nombre"
+                    cx="50%" cy="50%"
+                    innerRadius={50} outerRadius={80}
+                    paddingAngle={2}
+                  >
+                    {porCategoria.map((_, i) => (
+                      <Cell key={i} fill={COLORES[i % COLORES.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => fmt(v)} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Lista */}
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              {porCategoria.map((cat, i) => {
+                const pct = ((cat.total / totalCategorizado) * 100).toFixed(1)
+                return (
+                  <div key={cat.nombre} style={{ marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
+                      <span>{cat.emoji} {cat.nombre}</span>
+                      <span style={{ color: 'var(--text2)' }}>{fmt(cat.total)} · {pct}%</span>
+                    </div>
+                    <div style={{ background: 'var(--bg3)', borderRadius: '99px', height: '6px' }}>
+                      <div style={{
+                        width: `${pct}%`, height: '6px', borderRadius: '99px',
+                        background: COLORES[i % COLORES.length],
+                        transition: 'width 0.4s ease',
+                      }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tabla histórica */}
@@ -100,12 +205,13 @@ export default function Analisis() {
       }}>
         <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>📋 Tabla histórica</div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
                 {['Mes', 'Ingresos', 'Gastos', 'Ahorro', 'Tasa'].map(h => (
-                  <th key={h} style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--text2)', fontWeight: '600', whiteSpace: 'nowrap' }}
-                    className={h === 'Mes' ? 'text-left' : ''}>{h}</th>
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--text2)', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
