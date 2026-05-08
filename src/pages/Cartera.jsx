@@ -10,6 +10,9 @@ export default function Cartera() {
   const [loading, setLoading] = useState(true)
   const [editId, setEditId] = useState(null)
   const [editVal, setEditVal] = useState('')
+  const [actualizando, setActualizando] = useState(false)
+  const [ultimaActualizacion, setUltimaActualizacion] = useState(null)
+  const [errorApi, setErrorApi] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -27,6 +30,41 @@ export default function Cartera() {
     await supabase.from('cartera_etfs').update({ precio_actual: Number(editVal) }).eq('id', id)
     setEditId(null)
     setEditVal('')
+    load()
+  }
+
+  async function actualizarPreciosAPI() {
+    const AV_KEY = import.meta.env.VITE_AV_KEY
+    if (!AV_KEY || AV_KEY === 'TU_CLAVE_AQUI') {
+      setErrorApi('Añade tu API key de Alpha Vantage en el archivo .env (VITE_AV_KEY=...)')
+      return
+    }
+
+    setActualizando(true)
+    setErrorApi(null)
+    const errores = []
+
+    await Promise.all(
+      etfs.map(async (etf) => {
+        try {
+          const base = etf.ticker.split('.')[0]
+          const symbol = `${base}.DEX`
+          const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${AV_KEY}`
+          const res = await fetch(url)
+          const data = await res.json()
+          if (data['Note'] || data['Information']) throw new Error('límite de API alcanzado')
+          const precio = parseFloat(data['Global Quote']?.['05. price'])
+          if (!precio) throw new Error(`vacío para ${symbol} — respuesta: ${JSON.stringify(data).slice(0, 80)}`)
+          await supabase.from('cartera_etfs').update({ precio_actual: precio }).eq('id', etf.id)
+        } catch (err) {
+          errores.push(`${etf.ticker}: ${err.message}`)
+        }
+      })
+    )
+
+    setUltimaActualizacion(new Date())
+    if (errores.length > 0) setErrorApi(`Sin precio: ${errores.join(' · ')}`)
+    setActualizando(false)
     load()
   }
 
@@ -49,7 +87,31 @@ export default function Cartera() {
 
   return (
     <div style={{ maxWidth: '800px' }}>
-      <h1 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '24px' }}>📈 Cartera — Trade Republic</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+        <h1 style={{ fontSize: '22px', fontWeight: '700' }}>📈 Cartera — Trade Republic</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          <button
+            onClick={actualizarPreciosAPI}
+            disabled={actualizando}
+            style={{
+              background: actualizando ? 'var(--bg3)' : 'var(--blue)',
+              color: actualizando ? 'var(--text2)' : 'white',
+              border: 'none', borderRadius: '10px', padding: '10px 18px',
+              cursor: actualizando ? 'not-allowed' : 'pointer', fontWeight: '600', fontSize: '14px',
+            }}
+          >
+            {actualizando ? '⏳ Actualizando...' : '🔄 Actualizar precios'}
+          </button>
+          {ultimaActualizacion && (
+            <div style={{ fontSize: '11px', color: 'var(--text2)' }}>
+              Actualizado a las {ultimaActualizacion.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · ~15 min retraso
+            </div>
+          )}
+          {errorApi && (
+            <div style={{ fontSize: '11px', color: 'var(--red)' }}>{errorApi}</div>
+          )}
+        </div>
+      </div>
 
       {/* Resumen */}
       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>
@@ -124,7 +186,9 @@ export default function Cartera() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      <span style={{ fontSize: '14px' }}>{fmt(e.precio_actual)}</span>
+                      <span style={{ fontSize: '14px', color: e.precio_actual >= e.precio_compra ? 'var(--green)' : 'var(--red)' }}>
+                        {fmt(e.precio_actual)}
+                      </span>
                       <button onClick={() => { setEditId(e.id); setEditVal(e.precio_actual) }} style={{
                         background: 'none', border: 'none', color: 'var(--text2)',
                         cursor: 'pointer', fontSize: '12px',
