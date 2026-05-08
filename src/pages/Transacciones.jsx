@@ -21,6 +21,7 @@ export default function Transacciones() {
   const [importando, setImportando] = useState(false)
   const [cuentaImport, setCuentaImport] = useState('')
   const [editCategoria, setEditCategoria] = useState(null)
+  const [editTipo, setEditTipo] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -66,6 +67,12 @@ export default function Transacciones() {
   async function guardarCategoria(id, categoria) {
     await supabase.from('transacciones').update({ categoria }).eq('id', id)
     setEditCategoria(null)
+    load()
+  }
+
+  async function guardarTipo(id, tipo) {
+    await supabase.from('transacciones').update({ tipo }).eq('id', id)
+    setEditTipo(null)
     load()
   }
 
@@ -146,6 +153,43 @@ export default function Transacciones() {
               ))}
             </div>
             <button onClick={() => setEditCategoria(null)} style={{
+              width: '100%', background: 'var(--bg3)', color: 'var(--text2)',
+              border: '1px solid var(--border)', borderRadius: '8px',
+              padding: '10px', cursor: 'pointer',
+            }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal editar tipo */}
+      {editTipo && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 100, padding: '20px',
+        }}>
+          <div style={{
+            background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '340px',
+          }}>
+            <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '6px' }}>🔄 Tipo de transacción</div>
+            <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '16px', lineHeight: '1.4' }}>
+              {editTipo.descripcion || editTipo.tipo}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+              {TIPOS.map(t => (
+                <button key={t} onClick={() => guardarTipo(editTipo.id, t)}
+                  style={{
+                    background: editTipo.tipo === t ? 'var(--blue)' : 'var(--bg3)',
+                    border: '1px solid var(--border)', borderRadius: '8px',
+                    padding: '10px 14px', cursor: 'pointer', color: 'var(--text)',
+                    fontSize: '13px', textAlign: 'left',
+                  }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setEditTipo(null)} style={{
               width: '100%', background: 'var(--bg3)', color: 'var(--text2)',
               border: '1px solid var(--border)', borderRadius: '8px',
               padding: '10px', cursor: 'pointer',
@@ -350,6 +394,13 @@ export default function Transacciones() {
                   <span style={{ fontSize: '11px', color: 'var(--text2)', background: 'var(--bg3)', padding: '2px 6px', borderRadius: '4px' }}>
                     {t.cuentas?.nombre}
                   </span>
+                  <button onClick={() => setEditTipo(t)} style={{
+                    fontSize: '11px', background: 'var(--bg3)',
+                    border: '1px solid var(--border)', borderRadius: '4px',
+                    padding: '2px 6px', cursor: 'pointer', color: 'var(--text2)',
+                  }}>
+                    {t.tipo}
+                  </button>
                   <button onClick={() => setEditCategoria(t)} style={{
                     fontSize: '11px', background: cat ? 'var(--bg3)' : 'transparent',
                     border: '1px solid var(--border)', borderRadius: '4px',

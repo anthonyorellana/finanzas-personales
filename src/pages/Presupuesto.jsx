@@ -46,10 +46,7 @@ export default function Presupuesto() {
       .select('importe, tipo')
       .eq('mes', mes)
     const total = (data || [])
-      .filter(t => t.importe < 0
-        && !t.tipo.includes('Transf')
-        && !t.tipo.includes('ETF')
-        && !t.tipo.includes('Compra ETF'))
+      .filter(t => t.tipo === '⬇ Gasto')
       .reduce((s, t) => s + Math.abs(t.importe), 0)
     setGastoReal(total)
     setGastoManual('')
