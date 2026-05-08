@@ -10,6 +10,8 @@ export default function Dashboard() {
   const [editCuenta, setEditCuenta] = useState(null)
   const [editSaldo, setEditSaldo] = useState('')
   const [saving, setSaving] = useState(false)
+  const [guardandoSnap, setGuardandoSnap] = useState(false)
+  const [snapOk, setSnapOk] = useState(false)
 
   useEffect(() => { load() }, [])
 
@@ -21,6 +23,21 @@ export default function Dashboard() {
     setCuentas(c || [])
     setMeses(m || [])
     setLoading(false)
+  }
+
+  async function guardarSnapshot() {
+    setGuardandoSnap(true)
+    const total = cuentas.reduce((s, c) => s + Number(c.saldo), 0)
+    const detalle = {}
+    cuentas.forEach(c => { detalle[c.nombre] = Number(c.saldo) })
+    const hoy = new Date()
+    const fecha = hoy.toISOString().split('T')[0]
+    const mes = hoy.toLocaleString('es-ES', { month: 'short', year: 'numeric' })
+      .replace('.', '').replace(/^\w/, c => c.toUpperCase())
+    await supabase.from('snapshots_patrimonio').upsert([{ fecha, mes, total, detalle }], { onConflict: 'mes' })
+    setGuardandoSnap(false)
+    setSnapOk(true)
+    setTimeout(() => setSnapOk(false), 3000)
   }
 
   async function guardarSaldo() {
@@ -132,6 +149,19 @@ export default function Dashboard() {
             {c.notas && <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '4px' }}>{c.notas}</div>}
           </div>
         ))}
+      </div>
+
+      {/* Snapshot patrimonio */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-8px', marginBottom: '24px' }}>
+        <button onClick={guardarSnapshot} disabled={guardandoSnap} style={{
+          background: snapOk ? 'var(--green)' : 'var(--bg2)',
+          color: snapOk ? 'white' : 'var(--text2)',
+          border: '1px solid var(--border)', borderRadius: '10px',
+          padding: '8px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: '500',
+          transition: 'all 0.3s ease',
+        }}>
+          {snapOk ? '✅ Snapshot guardado' : guardandoSnap ? 'Guardando...' : '📸 Guardar snapshot del mes'}
+        </button>
       </div>
 
       {/* Mes actual */}

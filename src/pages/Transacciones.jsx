@@ -64,6 +64,22 @@ export default function Transacciones() {
     load()
   }
 
+  function exportarExcel() {
+    const datos = filtradas.map(t => ({
+      Fecha: t.fecha,
+      Mes: t.mes,
+      Tipo: t.tipo,
+      Descripción: t.descripcion || '',
+      'Importe (€)': t.importe,
+      Categoría: t.categoria || '',
+      Cuenta: t.cuentas?.nombre || '',
+    }))
+    const ws = XLSX.utils.json_to_sheet(datos)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Transacciones')
+    XLSX.writeFile(wb, `transacciones_${filtroMes || 'todas'}.xlsx`)
+  }
+
   async function guardarCategoria(id, categoria) {
     await supabase.from('transacciones').update({ categoria }).eq('id', id)
     setEditCategoria(null)
@@ -201,6 +217,10 @@ export default function Transacciones() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: '700' }}>💳 Transacciones</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={exportarExcel} style={{
+            background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border)',
+            borderRadius: '10px', padding: '10px 18px', cursor: 'pointer', fontWeight: '600',
+          }}>📤 Exportar</button>
           <button onClick={() => { setShowImport(!showImport); setShowForm(false) }} style={{
             background: 'var(--purple)', color: 'white', border: 'none',
             borderRadius: '10px', padding: '10px 18px', cursor: 'pointer', fontWeight: '600',

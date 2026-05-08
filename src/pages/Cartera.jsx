@@ -44,6 +44,8 @@ export default function Cartera() {
     setErrorApi(null)
     const errores = []
 
+    const preciosActualizados = {}
+
     await Promise.all(
       etfs.map(async (etf) => {
         try {
@@ -56,11 +58,22 @@ export default function Cartera() {
           const precio = parseFloat(data['Global Quote']?.['05. price'])
           if (!precio) throw new Error(`vacío para ${symbol} — respuesta: ${JSON.stringify(data).slice(0, 80)}`)
           await supabase.from('cartera_etfs').update({ precio_actual: precio }).eq('id', etf.id)
+          preciosActualizados[etf.id] = precio
         } catch (err) {
           errores.push(`${etf.ticker}: ${err.message}`)
         }
       })
     )
+
+    // Sincronizar saldo ETF en cuentas para que el Dashboard refleje el valor real
+    const nuevoTotalEtfs = etfs.reduce((s, e) => {
+      const precio = preciosActualizados[e.id] ?? e.precio_actual
+      return s + e.num_titulos * precio
+    }, 0)
+    const cuentaEtf = cuentas.find(c => c.tipo === 'etf')
+    if (cuentaEtf) {
+      await supabase.from('cuentas').update({ saldo: nuevoTotalEtfs }).eq('id', cuentaEtf.id)
+    }
 
     setUltimaActualizacion(new Date())
     if (errores.length > 0) setErrorApi(`Sin precio: ${errores.join(' · ')}`)
