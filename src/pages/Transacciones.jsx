@@ -57,46 +57,49 @@ export default function Transacciones() {
     load()
   }
 
-  function parsearExcel(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const wb = XLSX.read(ev.target.result, { type: 'binary', cellDates: true })
-      const sheet = wb.Sheets[wb.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+function parsearExcel(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    const wb = XLSX.read(ev.target.result, { type: 'binary', cellDates: true })
+    const sheet = wb.Sheets[wb.SheetNames[0]]
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
 
-      const resultado = []
-      for (const row of rows) {
-        // Buscar fila con fecha en primera columna
-        const posibleFecha = row[0]
-        const posibleImporte = row[2] || row[1]
+    const resultado = []
+    for (const row of rows) {
+      const posibleFecha = row[0]
+      const posibleImporte = row[3]
+      const posibleConcepto = row[2]
 
-        let fecha = null
-        if (posibleFecha instanceof Date) {
-          fecha = posibleFecha.toISOString().split('T')[0]
-        } else if (typeof posibleFecha === 'string' && posibleFecha.match(/\d{2}\/\d{2}\/\d{4}/)) {
-          const [d, m, y] = posibleFecha.split('/')
-          fecha = `${y}-${m}-${d}`
-        }
+      // Solo filas con fecha en formato DD/MM/YYYY
+      if (typeof posibleFecha !== 'string' || !posibleFecha.match(/^\d{2}\/\d{2}\/\d{4}$/)) continue
 
-        const importe = typeof posibleImporte === 'number' ? posibleImporte : parseFloat(String(posibleImporte).replace(',', '.'))
+      const [d, m, y] = posibleFecha.split('/')
+      const fecha = `${y}-${m}-${d}`
 
-        if (!fecha || isNaN(importe)) continue
+      // Limpiar importe: guión especial, puntos de miles, coma decimal
+      const importeStr = String(posibleImporte)
+        .replace('−', '-')   // guión especial → normal
+        .replace(/\./g, '')  // quitar puntos de miles
+        .replace(',', '.')   // coma → punto decimal
+      const importe = parseFloat(importeStr)
 
-        const fechaObj = new Date(fecha)
-        const mes = fechaObj.toLocaleString('es-ES', { month: 'short', year: 'numeric' })
-          .replace('.', '').replace(/^\w/, c => c.toUpperCase())
+      if (isNaN(importe)) continue
 
-        const descripcion = row[3] || row[4] || row[1] || ''
-        const tipo = importe > 0 ? '⬆ Ingreso' : '⬇ Gasto'
+      const fechaObj = new Date(fecha)
+      const mes = fechaObj.toLocaleString('es-ES', { month: 'short', year: 'numeric' })
+        .replace('.', '').replace(/^\w/, c => c.toUpperCase())
 
-        resultado.push({ fecha, mes, importe, tipo, descripcion: String(descripcion).trim() })
-      }
-      setImportPreview(resultado)
+      const descripcion = String(posibleConcepto).trim()
+      const tipo = importe > 0 ? '⬆ Ingreso' : '⬇ Gasto'
+
+      resultado.push({ fecha, mes, importe, tipo, descripcion })
     }
-    reader.readAsBinaryString(file)
+    setImportPreview(resultado)
   }
+  reader.readAsBinaryString(file)
+}
 
   async function confirmarImport() {
     if (!cuentaImport || importPreview.length === 0) return
