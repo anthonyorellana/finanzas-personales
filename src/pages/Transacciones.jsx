@@ -8,26 +8,31 @@ const TIPOS = ['⬇ Gasto', '⬆ Ingreso', '🏦 Transf. a TR', '🏦 Transf. de
 export default function Transacciones() {
   const [transacciones, setTransacciones] = useState([])
   const [cuentas, setCuentas] = useState([])
+  const [categorias, setCategorias] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtroMes, setFiltroMes] = useState('')
   const [filtroCuenta, setFiltroCuenta] = useState('')
+  const [filtroCategoria, setFiltroCategoria] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [showImport, setShowImport] = useState(false)
-  const [form, setForm] = useState({ fecha: '', importe: '', tipo: '⬇ Gasto', descripcion: '', cuenta_id: '' })
+  const [form, setForm] = useState({ fecha: '', importe: '', tipo: '⬇ Gasto', descripcion: '', cuenta_id: '', categoria: '' })
   const [saving, setSaving] = useState(false)
   const [importPreview, setImportPreview] = useState([])
   const [importando, setImportando] = useState(false)
   const [cuentaImport, setCuentaImport] = useState('')
+  const [editCategoria, setEditCategoria] = useState(null)
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: t }, { data: c }] = await Promise.all([
+    const [{ data: t }, { data: c }, { data: cat }] = await Promise.all([
       supabase.from('transacciones').select('*, cuentas(nombre)').order('fecha', { ascending: false }),
       supabase.from('cuentas').select('*'),
+      supabase.from('categorias').select('*').order('nombre'),
     ])
     setTransacciones(t || [])
     setCuentas(c || [])
+    setCategorias(cat || [])
     setLoading(false)
   }
 
@@ -35,6 +40,7 @@ export default function Transacciones() {
   const filtradas = transacciones.filter(t => {
     if (filtroMes && t.mes !== filtroMes) return false
     if (filtroCuenta && t.cuenta_id !== filtroCuenta) return false
+    if (filtroCategoria && t.categoria !== filtroCategoria) return false
     return true
   })
 
@@ -45,7 +51,7 @@ export default function Transacciones() {
     const mes = fecha.toLocaleString('es-ES', { month: 'short', year: 'numeric' })
       .replace('.', '').replace(/^\w/, c => c.toUpperCase())
     await supabase.from('transacciones').insert([{ ...form, importe: Number(form.importe), mes }])
-    setForm({ fecha: '', importe: '', tipo: '⬇ Gasto', descripcion: '', cuenta_id: '' })
+    setForm({ fecha: '', importe: '', tipo: '⬇ Gasto', descripcion: '', cuenta_id: '', categoria: '' })
     setShowForm(false)
     setSaving(false)
     load()
@@ -57,49 +63,43 @@ export default function Transacciones() {
     load()
   }
 
-function parsearExcel(e) {
-  const file = e.target.files[0]
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = (ev) => {
-    const wb = XLSX.read(ev.target.result, { type: 'binary', cellDates: true })
-    const sheet = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
-
-    const resultado = []
-    for (const row of rows) {
-      const posibleFecha = row[0]
-      const posibleImporte = row[3]
-      const posibleConcepto = row[2]
-
-      // Solo filas con fecha en formato DD/MM/YYYY
-      if (typeof posibleFecha !== 'string' || !posibleFecha.match(/^\d{2}\/\d{2}\/\d{4}$/)) continue
-
-      const [d, m, y] = posibleFecha.split('/')
-      const fecha = `${y}-${m}-${d}`
-
-      // Limpiar importe: guión especial, puntos de miles, coma decimal
-      const importeStr = String(posibleImporte)
-        .replace('−', '-')   // guión especial → normal
-        .replace(/\./g, '')  // quitar puntos de miles
-        .replace(',', '.')   // coma → punto decimal
-      const importe = parseFloat(importeStr)
-
-      if (isNaN(importe)) continue
-
-      const fechaObj = new Date(fecha)
-      const mes = fechaObj.toLocaleString('es-ES', { month: 'short', year: 'numeric' })
-        .replace('.', '').replace(/^\w/, c => c.toUpperCase())
-
-      const descripcion = String(posibleConcepto).trim()
-      const tipo = importe > 0 ? '⬆ Ingreso' : '⬇ Gasto'
-
-      resultado.push({ fecha, mes, importe, tipo, descripcion })
-    }
-    setImportPreview(resultado)
+  async function guardarCategoria(id, categoria) {
+    await supabase.from('transacciones').update({ categoria }).eq('id', id)
+    setEditCategoria(null)
+    load()
   }
-  reader.readAsBinaryString(file)
-}
+
+  function parsearExcel(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const wb = XLSX.read(ev.target.result, { type: 'binary', cellDates: true })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+      const resultado = []
+      for (const row of rows) {
+        const posibleFecha = row[0]
+        const posibleImporte = row[3]
+        const posibleConcepto = row[2]
+        if (typeof posibleFecha !== 'string' || !posibleFecha.match(/^\d{2}\/\d{2}\/\d{4}$/)) continue
+        const [d, m, y] = posibleFecha.split('/')
+        const fecha = `${y}-${m}-${d}`
+        const importeStr = String(posibleImporte)
+          .replace('−', '-').replace(/\./g, '').replace(',', '.')
+        const importe = parseFloat(importeStr)
+        if (isNaN(importe)) continue
+        const fechaObj = new Date(fecha)
+        const mes = fechaObj.toLocaleString('es-ES', { month: 'short', year: 'numeric' })
+          .replace('.', '').replace(/^\w/, c => c.toUpperCase())
+        const descripcion = String(posibleConcepto).trim()
+        const tipo = importe > 0 ? '⬆ Ingreso' : '⬇ Gasto'
+        resultado.push({ fecha, mes, importe, tipo, descripcion })
+      }
+      setImportPreview(resultado)
+    }
+    reader.readAsBinaryString(file)
+  }
 
   async function confirmarImport() {
     if (!cuentaImport || importPreview.length === 0) return
@@ -117,13 +117,50 @@ function parsearExcel(e) {
 
   return (
     <div style={{ maxWidth: '900px' }}>
+      {/* Modal editar categoría */}
+      {editCategoria && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 100, padding: '20px',
+        }}>
+          <div style={{
+            background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '340px',
+          }}>
+            <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '6px' }}>🏷️ Categoría</div>
+            <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '16px', lineHeight: '1.4' }}>
+              {editCategoria.descripcion || editCategoria.tipo}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+              {categorias.map(cat => (
+                <button key={cat.id} onClick={() => guardarCategoria(editCategoria.id, cat.nombre)}
+                  style={{
+                    background: editCategoria.categoria === cat.nombre ? 'var(--blue)' : 'var(--bg3)',
+                    border: '1px solid var(--border)', borderRadius: '8px',
+                    padding: '8px 10px', cursor: 'pointer', color: 'var(--text)',
+                    fontSize: '13px', textAlign: 'left', display: 'flex', gap: '6px', alignItems: 'center',
+                  }}>
+                  {cat.emoji} {cat.nombre}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setEditCategoria(null)} style={{
+              width: '100%', background: 'var(--bg3)', color: 'var(--text2)',
+              border: '1px solid var(--border)', borderRadius: '8px',
+              padding: '10px', cursor: 'pointer',
+            }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: '700' }}>💳 Transacciones</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={() => { setShowImport(!showImport); setShowForm(false) }} style={{
             background: 'var(--purple)', color: 'white', border: 'none',
             borderRadius: '10px', padding: '10px 18px', cursor: 'pointer', fontWeight: '600',
-          }}>📥 Importar Excel</button>
+          }}>📥 Importar</button>
           <button onClick={() => { setShowForm(!showForm); setShowImport(false) }} style={{
             background: 'var(--blue)', color: 'white', border: 'none',
             borderRadius: '10px', padding: '10px 18px', cursor: 'pointer', fontWeight: '600',
@@ -137,8 +174,7 @@ function parsearExcel(e) {
           background: 'var(--bg2)', border: '1px solid var(--border)',
           borderRadius: '16px', padding: '20px', marginBottom: '20px',
         }}>
-          <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>📥 Importar extracto Excel del Santander</div>
-
+          <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>📥 Importar extracto Excel</div>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
             <div style={{ flex: 1, minWidth: '200px' }}>
               <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '6px' }}>Cuenta destino</div>
@@ -160,11 +196,10 @@ function parsearExcel(e) {
                 }} />
             </div>
           </div>
-
           {importPreview.length > 0 && (
             <>
               <div style={{ fontSize: '13px', color: 'var(--green)', marginBottom: '12px' }}>
-                ✅ {importPreview.length} transacciones detectadas — revisa antes de importar
+                ✅ {importPreview.length} transacciones detectadas
               </div>
               <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '16px' }}>
                 {importPreview.slice(0, 10).map((r, i) => (
@@ -173,7 +208,7 @@ function parsearExcel(e) {
                     padding: '6px 0', borderBottom: '1px solid var(--border)',
                   }}>
                     <span style={{ color: 'var(--text2)' }}>{r.fecha}</span>
-                    <span style={{ flex: 1, margin: '0 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.descripcion || r.tipo}</span>
+                    <span style={{ flex: 1, margin: '0 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.descripcion}</span>
                     <span style={{ color: r.importe > 0 ? 'var(--green)' : 'var(--red)', fontWeight: '600' }}>
                       {r.importe > 0 ? '+' : ''}{fmt(r.importe)}
                     </span>
@@ -189,7 +224,7 @@ function parsearExcel(e) {
                 <button onClick={confirmarImport} disabled={importando || !cuentaImport} style={{
                   background: 'var(--green)', color: 'white', border: 'none',
                   borderRadius: '8px', padding: '9px 20px', cursor: 'pointer', fontWeight: '600',
-                }}>{importando ? 'Importando...' : `Importar ${importPreview.length} transacciones`}</button>
+                }}>{importando ? 'Importando...' : `Importar ${importPreview.length}`}</button>
                 <button onClick={() => { setImportPreview([]); setShowImport(false) }} style={{
                   background: 'var(--bg3)', color: 'var(--text2)', border: '1px solid var(--border)',
                   borderRadius: '8px', padding: '9px 20px', cursor: 'pointer',
@@ -243,6 +278,17 @@ function parsearExcel(e) {
                 {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
+            <div style={{ flex: '1', minWidth: '150px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '6px' }}>Categoría</div>
+              <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}
+                style={{
+                  width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)',
+                  borderRadius: '8px', padding: '8px 12px', color: 'var(--text)', fontSize: '14px',
+                }}>
+                <option value="">Sin categoría</option>
+                {categorias.map(c => <option key={c.id} value={c.nombre}>{c.emoji} {c.nombre}</option>)}
+              </select>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
             <button onClick={guardar} disabled={saving} style={{
@@ -258,11 +304,11 @@ function parsearExcel(e) {
       )}
 
       {/* Filtros */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
         <select value={filtroMes} onChange={e => setFiltroMes(e.target.value)}
           style={{
             background: 'var(--bg2)', border: '1px solid var(--border)',
-            borderRadius: '8px', padding: '8px 12px', color: 'var(--text)', fontSize: '14px',
+            borderRadius: '8px', padding: '8px 12px', color: 'var(--text)', fontSize: '13px',
           }}>
           <option value="">Todos los meses</option>
           {meses.map(m => <option key={m}>{m}</option>)}
@@ -270,49 +316,67 @@ function parsearExcel(e) {
         <select value={filtroCuenta} onChange={e => setFiltroCuenta(e.target.value)}
           style={{
             background: 'var(--bg2)', border: '1px solid var(--border)',
-            borderRadius: '8px', padding: '8px 12px', color: 'var(--text)', fontSize: '14px',
+            borderRadius: '8px', padding: '8px 12px', color: 'var(--text)', fontSize: '13px',
           }}>
           <option value="">Todas las cuentas</option>
           {cuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        </select>
+        <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
+          style={{
+            background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: '8px', padding: '8px 12px', color: 'var(--text)', fontSize: '13px',
+          }}>
+          <option value="">Todas las categorías</option>
+          {categorias.map(c => <option key={c.id} value={c.nombre}>{c.emoji} {c.nombre}</option>)}
         </select>
         <div style={{ fontSize: '13px', color: 'var(--text2)', alignSelf: 'center' }}>
           {filtradas.length} transacciones
         </div>
       </div>
 
-  {/* Lista */}
+      {/* Lista */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {filtradas.map(t => (
-          <div key={t.id} style={{
-            background: 'var(--bg2)', border: '1px solid var(--border)',
-            borderRadius: '12px', padding: '12px 14px',
-            display: 'flex', flexDirection: 'column', gap: '6px',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text2)' }}>{t.fecha}</span>
-                <span style={{ fontSize: '11px', color: 'var(--text2)', background: 'var(--bg3)', padding: '2px 6px', borderRadius: '4px' }}>
-                  {t.cuentas?.nombre}
-                </span>
+        {filtradas.map(t => {
+          const cat = categorias.find(c => c.nombre === t.categoria)
+          return (
+            <div key={t.id} style={{
+              background: 'var(--bg2)', border: '1px solid var(--border)',
+              borderRadius: '12px', padding: '12px 14px',
+              display: 'flex', flexDirection: 'column', gap: '6px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text2)' }}>{t.fecha}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text2)', background: 'var(--bg3)', padding: '2px 6px', borderRadius: '4px' }}>
+                    {t.cuentas?.nombre}
+                  </span>
+                  <button onClick={() => setEditCategoria(t)} style={{
+                    fontSize: '11px', background: cat ? 'var(--bg3)' : 'transparent',
+                    border: '1px solid var(--border)', borderRadius: '4px',
+                    padding: '2px 6px', cursor: 'pointer', color: cat ? 'var(--text)' : 'var(--text2)',
+                  }}>
+                    {cat ? `${cat.emoji} ${cat.nombre}` : '🏷️ Categorizar'}
+                  </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    fontWeight: '700', fontSize: '14px',
+                    color: t.importe > 0 ? 'var(--green)' : 'var(--red)',
+                  }}>
+                    {t.importe > 0 ? '+' : ''}{fmt(t.importe)}
+                  </span>
+                  <button onClick={() => eliminar(t.id)} style={{
+                    background: 'none', border: 'none', color: 'var(--text2)',
+                    cursor: 'pointer', fontSize: '14px', padding: '2px',
+                  }}>🗑️</button>
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{
-                  fontWeight: '700', fontSize: '14px',
-                  color: t.importe > 0 ? 'var(--green)' : 'var(--red)',
-                }}>
-                  {t.importe > 0 ? '+' : ''}{fmt(t.importe)}
-                </span>
-                <button onClick={() => eliminar(t.id)} style={{
-                  background: 'none', border: 'none', color: 'var(--text2)',
-                  cursor: 'pointer', fontSize: '14px', padding: '2px',
-                }}>🗑️</button>
+              <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: '1.4' }}>
+                {t.descripcion || t.tipo}
               </div>
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: '1.4' }}>
-              {t.descripcion || t.tipo}
-            </div>
-          </div>
-        ))}
+          )
+        })}
         {filtradas.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--text2)', padding: '40px' }}>
             No hay transacciones
