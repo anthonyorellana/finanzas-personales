@@ -60,9 +60,13 @@ export default function Analisis() {
   }))
 
   const txPorMes = {}
+  const txNormPorMes = {}
   transacciones.forEach(t => {
     if (!t.mes || t.tipo !== '⬇ Gasto') return
     txPorMes[t.mes] = (txPorMes[t.mes] || 0) + Math.abs(Number(t.importe))
+    if (!t.es_extraordinario) {
+      txNormPorMes[t.mes] = (txNormPorMes[t.mes] || 0) + Math.abs(Number(t.importe))
+    }
   })
 
   const totalIngresos = meses.reduce((s, m) => s + Number(m.ingresos_estimados), 0)
@@ -74,8 +78,11 @@ export default function Analisis() {
     mes: m.mes.replace(' 2025', '').replace(' 2026', ''),
     'Presupuesto': Number(m.presupuesto_gastos),
     'Gastos reales': txPorMes[m.mes] || 0,
+    'Gasto normal': txNormPorMes[m.mes] || txPorMes[m.mes] || 0,
     'Ahorro real': Number(m.ingresos_estimados) - (txPorMes[m.mes] || 0),
   }))
+
+  const hayExtraordinarios = transacciones.some(t => t.es_extraordinario)
 
   // Gastos por categoría
   const txFiltradas = transacciones.filter(t => {
@@ -187,6 +194,7 @@ export default function Analisis() {
             <Legend wrapperStyle={{ fontSize: '13px' }} />
             <Bar dataKey="Presupuesto" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
             <Bar dataKey="Gastos reales" fill="#ef4444" radius={[4, 4, 0, 0]} />
+            {hayExtraordinarios && <Bar dataKey="Gasto normal" fill="#f59e0b" radius={[4, 4, 0, 0]} />}
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -287,8 +295,8 @@ export default function Analisis() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                {['Mes', 'Ingresos', 'Presupuesto', 'Gastos reales', 'Ahorro real', 'Tasa'].map(h => (
-                  <th key={h} style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--text2)', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                {['Mes', 'Ingresos', 'Presupuesto', 'Gastos reales', ...(hayExtraordinarios ? ['⭐ Normal'] : []), 'Ahorro real', 'Tasa'].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'right', color: h === '⭐ Normal' ? 'var(--yellow)' : 'var(--text2)', fontWeight: '600', whiteSpace: 'nowrap' }}>
                     {h}
                   </th>
                 ))}
@@ -308,6 +316,11 @@ export default function Analisis() {
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--green)', fontWeight: '600' }}>{fmt(m.ingresos_estimados)}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text2)' }}>{fmt(m.presupuesto_gastos)}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: sobrePresupuesto ? 'var(--red)' : 'var(--yellow)', fontWeight: '600' }}>{fmt(gastosReal)}</td>
+                    {hayExtraordinarios && (
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--yellow)', fontWeight: '600' }}>
+                        {fmt(txNormPorMes[m.mes] ?? gastosReal)}
+                      </td>
+                    )}
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: ahorro >= 0 ? 'var(--blue)' : 'var(--red)', fontWeight: '600' }}>{fmt(ahorro)}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: tasa >= 0 ? 'var(--green)' : 'var(--red)' }}>{tasa}%</td>
                   </tr>

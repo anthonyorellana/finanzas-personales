@@ -92,6 +92,11 @@ export default function Transacciones() {
     load()
   }
 
+  async function toggleExtraordinario(id, actual) {
+    await supabase.from('transacciones').update({ es_extraordinario: !actual }).eq('id', id)
+    load()
+  }
+
   function parsearExcel(e) {
     const file = e.target.files[0]
     if (!file) return
@@ -428,6 +433,17 @@ export default function Transacciones() {
                   }}>
                     {cat ? `${cat.emoji} ${cat.nombre}` : '🏷️ Categorizar'}
                   </button>
+                  {t.tipo === '⬇ Gasto' && (
+                    <button onClick={() => toggleExtraordinario(t.id, t.es_extraordinario)} title="Marcar como gasto excepcional (no recurrente)" style={{
+                      fontSize: '11px',
+                      background: t.es_extraordinario ? 'rgba(245,158,11,0.15)' : 'transparent',
+                      border: `1px solid ${t.es_extraordinario ? 'var(--yellow)' : 'var(--border)'}`,
+                      borderRadius: '4px', padding: '2px 6px', cursor: 'pointer',
+                      color: t.es_extraordinario ? 'var(--yellow)' : 'var(--text2)',
+                    }}>
+                      {t.es_extraordinario ? '⭐ Excepcional' : '☆'}
+                    </button>
+                  )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{

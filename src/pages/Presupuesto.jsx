@@ -13,9 +13,12 @@ export default function Presupuesto() {
   const [showNuevoMes, setShowNuevoMes] = useState(false)
   const [editFijo, setEditFijo] = useState(null)
   const [editFijoVal, setEditFijoVal] = useState('')
+  const [showNuevoFijo, setShowNuevoFijo] = useState(false)
+  const [formFijo, setFormFijo] = useState({ nombre: '', emoji: '💸', importe: '' })
   const [formMes, setFormMes] = useState({ ingresos_estimados: '', presupuesto_gastos: '' })
   const [formNuevo, setFormNuevo] = useState({ mes: '', ingresos_estimados: '', presupuesto_gastos: '', notas: '' })
   const [gastoReal, setGastoReal] = useState(0)
+  const [gastoExtraordinario, setGastoExtraordinario] = useState(0)
   const [gastoManual, setGastoManual] = useState('')
 
   useEffect(() => { load() }, [])
@@ -43,12 +46,15 @@ export default function Presupuesto() {
   async function cargarGastoReal(mes) {
     const { data } = await supabase
       .from('transacciones')
-      .select('importe, tipo')
+      .select('importe, tipo, es_extraordinario')
       .eq('mes', mes)
-    const total = (data || [])
-      .filter(t => t.tipo === '⬇ Gasto')
+    const gastos = (data || []).filter(t => t.tipo === '⬇ Gasto')
+    const total = gastos.reduce((s, t) => s + Math.abs(t.importe), 0)
+    const extraordinario = gastos
+      .filter(t => t.es_extraordinario)
       .reduce((s, t) => s + Math.abs(t.importe), 0)
     setGastoReal(total)
+    setGastoExtraordinario(extraordinario)
     setGastoManual('')
   }
 
@@ -94,6 +100,25 @@ export default function Presupuesto() {
     load()
   }
 
+  async function crearFijo() {
+    if (!formFijo.nombre || !formFijo.importe) return
+    await supabase.from('gastos_fijos').insert([{
+      nombre: formFijo.nombre,
+      emoji: formFijo.emoji || '💸',
+      importe: Number(formFijo.importe),
+      activo: true,
+    }])
+    setFormFijo({ nombre: '', emoji: '💸', importe: '' })
+    setShowNuevoFijo(false)
+    load()
+  }
+
+  async function eliminarFijo(id) {
+    if (!confirm('¿Eliminar este gasto fijo?')) return
+    await supabase.from('gastos_fijos').update({ activo: false }).eq('id', id)
+    load()
+  }
+
   if (loading) return <div style={{ color: 'var(--text2)', padding: '40px' }}>Cargando...</div>
 
   const totalFijos = fijos.reduce((s, f) => s + Number(f.importe), 0)
@@ -109,6 +134,9 @@ export default function Presupuesto() {
   const diasMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate()
   const proyeccion = diaActual > 0 ? (gastoEfectivo / diaActual) * diasMes : 0
   const desviacion = proyeccion - presupuesto
+  const gastoNormalizado = gastoEfectivo - gastoExtraordinario
+  const proyeccionNorm = diaActual > 0 ? (gastoNormalizado / diaActual) * diasMes : 0
+  const desviacionNorm = proyeccionNorm - presupuesto
 
   return (
     <div style={{ maxWidth: '700px' }}>
@@ -318,6 +346,17 @@ export default function Presupuesto() {
                 {fmt(Math.max(gastoEfectivo - totalFijos, 0))}
               </div>
             </div>
+            {gastoExtraordinario > 0 && (
+              <div style={{ flex: 1, background: 'rgba(245,158,11,0.08)', border: '1px solid var(--yellow)', borderRadius: '12px', padding: '14px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--yellow)' }}>⭐ Excepcionales</div>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--yellow)' }}>
+                  {fmt(gastoExtraordinario)}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '4px' }}>
+                  Normal: {fmt(gastoNormalizado)}
+                </div>
+              </div>
+            )}
             <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: '12px', padding: '14px' }}>
               <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Disponible</div>
               <div style={{ fontSize: '20px', fontWeight: '700', color: disponible >= 0 ? 'var(--green)' : 'var(--red)' }}>
@@ -329,6 +368,7 @@ export default function Presupuesto() {
           <div style={{
             background: 'var(--bg3)', borderRadius: '12px', padding: '14px',
             border: `1px solid ${desviacion > 0 ? 'var(--red)' : 'var(--green)'}`,
+            marginBottom: gastoExtraordinario > 0 ? '10px' : '0',
           }}>
             <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '6px' }}>
               🎯 Proyección de cierre — día {diaActual} de {diasMes}
@@ -342,6 +382,24 @@ export default function Presupuesto() {
               </div>
             </div>
           </div>
+          {gastoExtraordinario > 0 && (
+            <div style={{
+              background: 'rgba(245,158,11,0.06)', borderRadius: '12px', padding: '14px',
+              border: `1px solid ${desviacionNorm > 0 ? 'var(--red)' : 'var(--yellow)'}`,
+            }}>
+              <div style={{ fontSize: '12px', color: 'var(--yellow)', marginBottom: '6px' }}>
+                ⭐ Proyección normalizada (sin excepcionales)
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '22px', fontWeight: '700', color: desviacionNorm > 0 ? 'var(--red)' : 'var(--green)' }}>
+                  {fmt(proyeccionNorm)}
+                </div>
+                <div style={{ fontSize: '13px', color: desviacionNorm > 0 ? 'var(--red)' : 'var(--green)', textAlign: 'right' }}>
+                  {desviacionNorm > 0 ? `⚠️ +${fmt(desviacionNorm)} sobre presupuesto` : `✅ ${fmt(Math.abs(desviacionNorm))} bajo presupuesto`}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -349,7 +407,60 @@ export default function Presupuesto() {
         background: 'var(--bg2)', border: '1px solid var(--border)',
         borderRadius: '16px', padding: '20px',
       }}>
-        <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>🔒 Gastos fijos del mes</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ fontSize: '15px', fontWeight: '600' }}>🔒 Gastos fijos del mes</div>
+          <button onClick={() => setShowNuevoFijo(!showNuevoFijo)} style={{
+            background: 'var(--bg3)', border: '1px solid var(--border)',
+            borderRadius: '8px', padding: '5px 12px', cursor: 'pointer',
+            color: 'var(--text2)', fontSize: '13px',
+          }}>+ Añadir</button>
+        </div>
+
+        {showNuevoFijo && (
+          <div style={{
+            background: 'var(--bg3)', borderRadius: '12px', padding: '14px',
+            marginBottom: '16px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end',
+          }}>
+            <div style={{ width: '48px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text2)', marginBottom: '4px' }}>Emoji</div>
+              <input value={formFijo.emoji} onChange={e => setFormFijo({ ...formFijo, emoji: e.target.value })}
+                style={{
+                  width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)',
+                  borderRadius: '6px', padding: '6px 8px', color: 'var(--text)', fontSize: '16px', textAlign: 'center',
+                }} />
+            </div>
+            <div style={{ flex: 1, minWidth: '120px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text2)', marginBottom: '4px' }}>Nombre</div>
+              <input placeholder="Inversión EUNL" value={formFijo.nombre}
+                onChange={e => setFormFijo({ ...formFijo, nombre: e.target.value })}
+                style={{
+                  width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)',
+                  borderRadius: '6px', padding: '6px 10px', color: 'var(--text)', fontSize: '14px',
+                }} />
+            </div>
+            <div style={{ width: '100px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text2)', marginBottom: '4px' }}>Importe (€)</div>
+              <input type="number" placeholder="300" value={formFijo.importe}
+                onChange={e => setFormFijo({ ...formFijo, importe: e.target.value })}
+                onKeyDown={e => e.key === 'Enter' && crearFijo()}
+                style={{
+                  width: '100%', background: 'var(--bg2)', border: '1px solid var(--border)',
+                  borderRadius: '6px', padding: '6px 10px', color: 'var(--text)', fontSize: '14px',
+                }} />
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button onClick={crearFijo} style={{
+                background: 'var(--green)', color: 'white', border: 'none',
+                borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontWeight: '600', fontSize: '13px',
+              }}>Guardar</button>
+              <button onClick={() => setShowNuevoFijo(false)} style={{
+                background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border)',
+                borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '13px',
+              }}>✕</button>
+            </div>
+          </div>
+        )}
+
         {fijos.map(f => (
           <div key={f.id} style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -362,6 +473,10 @@ export default function Presupuesto() {
                 background: 'none', border: 'none', color: 'var(--text2)',
                 cursor: 'pointer', fontSize: '14px', padding: '2px',
               }}>✏️</button>
+              <button onClick={() => eliminarFijo(f.id)} style={{
+                background: 'none', border: 'none', color: 'var(--text2)',
+                cursor: 'pointer', fontSize: '14px', padding: '2px',
+              }}>🗑️</button>
             </div>
           </div>
         ))}

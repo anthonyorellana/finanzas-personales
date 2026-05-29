@@ -2,7 +2,20 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
-const fmtPct = (n) => `${(n * 100).toFixed(2)}%`
+const AV_KEY = import.meta.env.VITE_AV_KEY
+
+async function fetchPrecio(ticker) {
+  try {
+    const res = await fetch(
+      `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${AV_KEY}`
+    )
+    const data = await res.json()
+    const precio = parseFloat(data['Global Quote']?.['05. price'])
+    return isNaN(precio) ? null : precio
+  } catch {
+    return null
+  }
+}
 
 export default function Cartera() {
   const [etfs, setEtfs] = useState([])
@@ -12,7 +25,6 @@ export default function Cartera() {
   const [editVal, setEditVal] = useState('')
   const [actualizando, setActualizando] = useState(false)
   const [ultimaActualizacion, setUltimaActualizacion] = useState(null)
-  const [errorApi, setErrorApi] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -26,58 +38,40 @@ export default function Cartera() {
     setLoading(false)
   }
 
-  async function actualizarPrecio(id) {
-    await supabase.from('cartera_etfs').update({ precio_actual: Number(editVal) }).eq('id', id)
-    setEditId(null)
-    setEditVal('')
+  async function sincronizarCuentas(etfsActualizados, cuentasData) {
+    for (const etf of etfsActualizados) {
+      const valorReal = etf.num_titulos * etf.precio_actual
+      const cuenta = cuentasData.find(c => c.nombre === `TR — ${etf.ticker}`)
+      if (cuenta && Math.abs(Number(cuenta.saldo) - valorReal) > 0.01) {
+        await supabase.from('cuentas').update({ saldo: valorReal }).eq('id', cuenta.id)
+      }
+    }
+  }
+
+  async function actualizarPrecios() {
+    setActualizando(true)
+    const etfsActualizados = [...etfs]
+    for (const etf of etfsActualizados) {
+      const precio = await fetchPrecio(etf.ticker)
+      if (precio) {
+        await supabase.from('cartera_etfs').update({ precio_actual: precio }).eq('id', etf.id)
+        etf.precio_actual = precio
+      }
+      await new Promise(r => setTimeout(r, 1500))
+    }
+    await sincronizarCuentas(etfsActualizados, cuentas)
+    setUltimaActualizacion(new Date().toLocaleTimeString('es-ES'))
+    setActualizando(false)
     load()
   }
 
-  async function actualizarPreciosAPI() {
-    const AV_KEY = import.meta.env.VITE_AV_KEY
-    if (!AV_KEY || AV_KEY === 'TU_CLAVE_AQUI') {
-      setErrorApi('Añade tu API key de Alpha Vantage en el archivo .env (VITE_AV_KEY=...)')
-      return
-    }
-
-    setActualizando(true)
-    setErrorApi(null)
-    const errores = []
-
-    const preciosActualizados = {}
-
-    await Promise.all(
-      etfs.map(async (etf) => {
-        try {
-          const base = etf.ticker.split('.')[0]
-          const symbol = `${base}.DEX`
-          const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${AV_KEY}`
-          const res = await fetch(url)
-          const data = await res.json()
-          if (data['Note'] || data['Information']) throw new Error('límite de API alcanzado')
-          const precio = parseFloat(data['Global Quote']?.['05. price'])
-          if (!precio) throw new Error(`vacío para ${symbol} — respuesta: ${JSON.stringify(data).slice(0, 80)}`)
-          await supabase.from('cartera_etfs').update({ precio_actual: precio }).eq('id', etf.id)
-          preciosActualizados[etf.id] = precio
-        } catch (err) {
-          errores.push(`${etf.ticker}: ${err.message}`)
-        }
-      })
-    )
-
-    // Sincronizar saldo ETF en cuentas para que el Dashboard refleje el valor real
-    const nuevoTotalEtfs = etfs.reduce((s, e) => {
-      const precio = preciosActualizados[e.id] ?? e.precio_actual
-      return s + e.num_titulos * precio
-    }, 0)
-    const cuentaEtf = cuentas.find(c => c.tipo === 'etf')
-    if (cuentaEtf) {
-      await supabase.from('cuentas').update({ saldo: nuevoTotalEtfs }).eq('id', cuentaEtf.id)
-    }
-
-    setUltimaActualizacion(new Date())
-    if (errores.length > 0) setErrorApi(`Sin precio: ${errores.join(' · ')}`)
-    setActualizando(false)
+  async function actualizarPrecioManual(id) {
+    const nuevoPrecio = Number(editVal)
+    await supabase.from('cartera_etfs').update({ precio_actual: nuevoPrecio }).eq('id', id)
+    const etfsActualizados = etfs.map(e => e.id === id ? { ...e, precio_actual: nuevoPrecio } : e)
+    await sincronizarCuentas(etfsActualizados, cuentas)
+    setEditId(null)
+    setEditVal('')
     load()
   }
 
@@ -103,25 +97,17 @@ export default function Cartera() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: '700' }}>📈 Cartera — Trade Republic</h1>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-          <button
-            onClick={actualizarPreciosAPI}
-            disabled={actualizando}
-            style={{
-              background: actualizando ? 'var(--bg3)' : 'var(--blue)',
-              color: actualizando ? 'var(--text2)' : 'white',
-              border: 'none', borderRadius: '10px', padding: '10px 18px',
-              cursor: actualizando ? 'not-allowed' : 'pointer', fontWeight: '600', fontSize: '14px',
-            }}
-          >
+          <button onClick={actualizarPrecios} disabled={actualizando} style={{
+            background: actualizando ? 'var(--bg3)' : 'var(--blue)', color: 'white', border: 'none',
+            borderRadius: '10px', padding: '10px 18px', cursor: actualizando ? 'not-allowed' : 'pointer',
+            fontWeight: '600', fontSize: '14px',
+          }}>
             {actualizando ? '⏳ Actualizando...' : '🔄 Actualizar precios'}
           </button>
           {ultimaActualizacion && (
             <div style={{ fontSize: '11px', color: 'var(--text2)' }}>
-              Actualizado a las {ultimaActualizacion.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · ~15 min retraso
+              Última actualización: {ultimaActualizacion}
             </div>
-          )}
-          {errorApi && (
-            <div style={{ fontSize: '11px', color: 'var(--red)' }}>{errorApi}</div>
           )}
         </div>
       </div>
@@ -188,7 +174,7 @@ export default function Cartera() {
                           width: '80px', background: 'var(--bg2)', border: '1px solid var(--blue)',
                           borderRadius: '6px', padding: '4px 8px', color: 'var(--text)', fontSize: '13px',
                         }} />
-                      <button onClick={() => actualizarPrecio(e.id)} style={{
+                      <button onClick={() => actualizarPrecioManual(e.id)} style={{
                         background: 'var(--green)', color: 'white', border: 'none',
                         borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px',
                       }}>✓</button>
@@ -199,9 +185,7 @@ export default function Cartera() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      <span style={{ fontSize: '14px', color: e.precio_actual >= e.precio_compra ? 'var(--green)' : 'var(--red)' }}>
-                        {fmt(e.precio_actual)}
-                      </span>
+                      <span style={{ fontSize: '14px' }}>{fmt(e.precio_actual)}</span>
                       <button onClick={() => { setEditId(e.id); setEditVal(e.precio_actual) }} style={{
                         background: 'none', border: 'none', color: 'var(--text2)',
                         cursor: 'pointer', fontSize: '12px',
@@ -222,7 +206,7 @@ export default function Cartera() {
         })}
       </div>
 
-      {/* Proyección intereses liquidez */}
+      {/* Proyección intereses */}
       <div style={{
         background: 'var(--bg2)', border: '1px solid var(--border)',
         borderRadius: '16px', padding: '20px',
