@@ -2,6 +2,25 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
+const fmtDia = (d) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+
+function getCicloFechas(offset) {
+  const hoy = new Date()
+  let year = hoy.getFullYear()
+  let month = hoy.getMonth()
+  if (hoy.getDate() < 28) {
+    month -= 1
+    if (month < 0) { month = 11; year -= 1 }
+  }
+  month += offset
+  while (month < 0) { month += 12; year -= 1 }
+  while (month > 11) { month -= 12; year += 1 }
+  const inicio = new Date(year, month, 28)
+  let ey = year, em = month + 1
+  if (em > 11) { em = 0; ey += 1 }
+  const fin = new Date(ey, em, 27)
+  return { inicio, fin }
+}
 
 export default function Presupuesto() {
   const [meses, setMeses] = useState([])
@@ -20,8 +39,12 @@ export default function Presupuesto() {
   const [gastoReal, setGastoReal] = useState(0)
   const [gastoExtraordinario, setGastoExtraordinario] = useState(0)
   const [gastoManual, setGastoManual] = useState('')
+  const [cicloOffset, setCicloOffset] = useState(0)
+  const [txCiclo, setTxCiclo] = useState([])
+  const [loadingCiclo, setLoadingCiclo] = useState(false)
 
   useEffect(() => { load() }, [])
+  useEffect(() => { cargarCiclo(cicloOffset) }, [cicloOffset])
 
   async function load() {
     const [{ data: m }, { data: f }] = await Promise.all([
@@ -117,6 +140,22 @@ export default function Presupuesto() {
     if (!confirm('¿Eliminar este gasto fijo?')) return
     await supabase.from('gastos_fijos').update({ activo: false }).eq('id', id)
     load()
+  }
+
+  async function cargarCiclo(offset) {
+    setLoadingCiclo(true)
+    const { inicio, fin } = getCicloFechas(offset)
+    const inicioStr = inicio.toISOString().split('T')[0]
+    const finStr = fin.toISOString().split('T')[0]
+    const { data } = await supabase
+      .from('transacciones')
+      .select('importe, tipo, descripcion, fecha, categoria')
+      .gte('fecha', inicioStr)
+      .lte('fecha', finStr)
+      .in('tipo', ['⬇ Gasto', '⬆ Ingreso'])
+      .order('fecha', { ascending: false })
+    setTxCiclo(data || [])
+    setLoadingCiclo(false)
   }
 
   if (loading) return <div style={{ color: 'var(--text2)', padding: '40px' }}>Cargando...</div>
@@ -485,6 +524,181 @@ export default function Presupuesto() {
           <span style={{ color: 'var(--red)' }}>{fmt(totalFijos)}</span>
         </div>
       </div>
+
+      {/* Ciclo de nómina */}
+      {(() => {
+        const { inicio, fin } = getCicloFechas(cicloOffset)
+        const hoy = new Date()
+        const esCicloActual = cicloOffset === 0
+        const diasTotales = Math.round((fin - inicio) / 86400000) + 1
+        const diasTranscurridos = esCicloActual
+          ? Math.min(Math.round((hoy - inicio) / 86400000) + 1, diasTotales)
+          : diasTotales
+        const diasRestantes = diasTotales - diasTranscurridos
+
+        const ingresosCiclo = txCiclo
+          .filter(t => t.tipo === '⬆ Ingreso')
+          .reduce((s, t) => s + Number(t.importe), 0)
+        const gastosCiclo = txCiclo
+          .filter(t => t.tipo === '⬇ Gasto')
+          .reduce((s, t) => s + Math.abs(Number(t.importe)), 0)
+        const saldoCiclo = ingresosCiclo - gastosCiclo
+        const pctGastadoCiclo = ingresosCiclo > 0
+          ? Math.min((gastosCiclo / ingresosCiclo) * 100, 100)
+          : 0
+
+        // Agrupación por categoría
+        const porCat = {}
+        txCiclo.filter(t => t.tipo === '⬇ Gasto').forEach(t => {
+          const cat = t.categoria || 'Sin categoría'
+          porCat[cat] = (porCat[cat] || 0) + Math.abs(Number(t.importe))
+        })
+        const catOrdenadas = Object.entries(porCat).sort((a, b) => b[1] - a[1])
+
+        return (
+          <div style={{
+            background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: '16px', padding: '20px', marginTop: '20px',
+          }}>
+            {/* Cabecera con navegación */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <button onClick={() => setCicloOffset(o => o - 1)} style={{
+                background: 'var(--bg3)', border: '1px solid var(--border)',
+                borderRadius: '8px', padding: '6px 12px', cursor: 'pointer',
+                color: 'var(--text)', fontSize: '14px',
+              }}>←</button>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '15px', fontWeight: '600' }}>
+                  📆 Ciclo de nómina
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>
+                  {fmtDia(inicio)} → {fmtDia(fin)}
+                  {esCicloActual && <span style={{ marginLeft: '6px', color: 'var(--blue)' }}>· actual</span>}
+                </div>
+              </div>
+              <button
+                onClick={() => setCicloOffset(o => o + 1)}
+                disabled={cicloOffset >= 0}
+                style={{
+                  background: 'var(--bg3)', border: '1px solid var(--border)',
+                  borderRadius: '8px', padding: '6px 12px',
+                  cursor: cicloOffset >= 0 ? 'not-allowed' : 'pointer',
+                  color: cicloOffset >= 0 ? 'var(--text2)' : 'var(--text)', fontSize: '14px',
+                  opacity: cicloOffset >= 0 ? 0.4 : 1,
+                }}>→</button>
+            </div>
+
+            {loadingCiclo ? (
+              <div style={{ textAlign: 'center', color: 'var(--text2)', padding: '20px' }}>Cargando...</div>
+            ) : (
+              <>
+                {/* Tarjetas resumen */}
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  {[
+                    { label: '⬆ Ingresos', value: ingresosCiclo, color: 'var(--green)' },
+                    { label: '⬇ Gastos', value: gastosCiclo, color: 'var(--red)' },
+                    { label: '💾 Saldo', value: saldoCiclo, color: saldoCiclo >= 0 ? 'var(--blue)' : 'var(--red)' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} style={{
+                      flex: 1, minWidth: '120px', background: 'var(--bg3)',
+                      borderRadius: '12px', padding: '14px',
+                    }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text2)', marginBottom: '6px' }}>{label}</div>
+                      <div style={{ fontSize: '18px', fontWeight: '700', color }}>
+                        {label === '💾 Saldo' && saldoCiclo > 0 ? '+' : ''}{fmt(value)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Barra de progreso gastos/ingresos */}
+                {ingresosCiclo > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text2)', marginBottom: '6px' }}>
+                      <span>{pctGastadoCiclo.toFixed(0)}% de ingresos gastado</span>
+                      <span>
+                        {esCicloActual
+                          ? `Día ${diasTranscurridos} de ${diasTotales} · quedan ${diasRestantes} días`
+                          : `Ciclo cerrado (${diasTotales} días)`}
+                      </span>
+                    </div>
+                    <div style={{ background: 'var(--bg3)', borderRadius: '99px', height: '8px' }}>
+                      <div style={{
+                        width: `${pctGastadoCiclo}%`, height: '8px', borderRadius: '99px',
+                        background: pctGastadoCiclo > 90 ? 'var(--red)' : pctGastadoCiclo > 70 ? 'var(--yellow)' : 'var(--green)',
+                        transition: 'width 0.4s ease',
+                      }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Desglose por categoría */}
+                {catOrdenadas.length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '10px' }}>Gastos por categoría</div>
+                    {catOrdenadas.map(([cat, total]) => {
+                      const pct = gastosCiclo > 0 ? (total / gastosCiclo) * 100 : 0
+                      return (
+                        <div key={cat} style={{ marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '3px' }}>
+                            <span>{cat}</span>
+                            <span style={{ color: 'var(--text2)' }}>{fmt(total)} · {pct.toFixed(0)}%</span>
+                          </div>
+                          <div style={{ background: 'var(--bg3)', borderRadius: '99px', height: '5px' }}>
+                            <div style={{
+                              width: `${pct}%`, height: '5px', borderRadius: '99px',
+                              background: 'var(--red)', transition: 'width 0.4s ease',
+                            }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Últimas transacciones del ciclo */}
+                {txCiclo.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>
+                      Movimientos ({txCiclo.length})
+                    </div>
+                    {txCiclo.slice(0, 8).map((t, i) => (
+                      <div key={i} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: '13px',
+                      }}>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', minWidth: 0 }}>
+                          <span style={{ color: 'var(--text2)', whiteSpace: 'nowrap', fontSize: '11px' }}>{t.fecha}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {t.descripcion || t.tipo}
+                          </span>
+                        </div>
+                        <span style={{
+                          fontWeight: '600', whiteSpace: 'nowrap', marginLeft: '12px',
+                          color: t.tipo === '⬆ Ingreso' ? 'var(--green)' : 'var(--red)',
+                        }}>
+                          {t.tipo === '⬆ Ingreso' ? '+' : '-'}{fmt(Math.abs(t.importe))}
+                        </span>
+                      </div>
+                    ))}
+                    {txCiclo.length > 8 && (
+                      <div style={{ fontSize: '12px', color: 'var(--text2)', paddingTop: '8px', textAlign: 'center' }}>
+                        ...y {txCiclo.length - 8} más
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {txCiclo.length === 0 && (
+                  <div style={{ textAlign: 'center', color: 'var(--text2)', padding: '20px', fontSize: '13px' }}>
+                    No hay transacciones en este ciclo
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
