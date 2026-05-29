@@ -20,6 +20,7 @@ async function fetchPrecio(ticker) {
 export default function Cartera() {
   const [etfs, setEtfs] = useState([])
   const [cuentas, setCuentas] = useState([])
+  const [redondeos, setRedondeos] = useState([])
   const [loading, setLoading] = useState(true)
   const [editId, setEditId] = useState(null)
   const [editVal, setEditVal] = useState('')
@@ -29,12 +30,17 @@ export default function Cartera() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: e }, { data: c }] = await Promise.all([
+    const [{ data: e }, { data: c }, { data: r }] = await Promise.all([
       supabase.from('cartera_etfs').select('*'),
       supabase.from('cuentas').select('*'),
+      supabase.from('transacciones')
+        .select('importe, cuenta_id')
+        .eq('tipo', '📈 Compra ETF')
+        .gt('importe', 0),
     ])
     setEtfs(e || [])
     setCuentas(c || [])
+    setRedondeos(r || [])
     setLoading(false)
   }
 
@@ -136,10 +142,17 @@ export default function Cartera() {
       }}>
         <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>📊 Posiciones ETF</div>
         {etfs.map(e => {
-          const coste = e.num_titulos * e.precio_compra
+          const cuentaEtf = cuentas.find(c => c.nombre === `TR — ${e.ticker}`)
+          const totalRedondeos = redondeos
+            .filter(r => r.cuenta_id === cuentaEtf?.id)
+            .reduce((s, r) => s + Number(r.importe), 0)
+          const costeBase = e.num_titulos * e.precio_compra
+          const costeTotal = costeBase + totalRedondeos
           const valor = e.num_titulos * e.precio_actual
-          const pnl = valor - coste
-          const pnlPct = (pnl / coste) * 100
+          const pnl = valor - costeBase
+          const pnlPct = (pnl / costeBase) * 100
+          const pnlConRedondeos = valor - costeTotal
+          const pnlConRedondeosPct = costeTotal > 0 ? (pnlConRedondeos / costeTotal) * 100 : 0
           return (
             <div key={e.id} style={{
               background: 'var(--bg3)', borderRadius: '12px', padding: '16px', marginBottom: '12px',
@@ -154,6 +167,11 @@ export default function Cartera() {
                   <div style={{ fontSize: '13px', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
                     {pnl >= 0 ? '+' : ''}{fmt(pnl)} ({pnlPct.toFixed(2)}%)
                   </div>
+                  {totalRedondeos > 0 && (
+                    <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '2px' }}>
+                      +{fmt(totalRedondeos)} redondeos · real {pnlConRedondeos >= 0 ? '+' : ''}{fmt(pnlConRedondeos)} ({pnlConRedondeosPct.toFixed(2)}%)
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '20px', marginTop: '12px', flexWrap: 'wrap' }}>
@@ -162,8 +180,13 @@ export default function Cartera() {
                   <div style={{ fontSize: '14px' }}>{e.num_titulos}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text2)' }}>P. Compra</div>
-                  <div style={{ fontSize: '14px' }}>{fmt(e.precio_compra)}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text2)' }}>Invertido</div>
+                  <div style={{ fontSize: '14px' }}>{fmt(costeTotal)}</div>
+                  {totalRedondeos > 0 && (
+                    <div style={{ fontSize: '10px', color: 'var(--text2)' }}>
+                      ({fmt(costeBase)} + {fmt(totalRedondeos)} redondeos)
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div style={{ fontSize: '11px', color: 'var(--text2)' }}>P. Actual</div>

@@ -6,6 +6,7 @@ const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency:
 export default function Dashboard() {
   const [cuentas, setCuentas] = useState([])
   const [meses, setMeses] = useState([])
+  const [etfsList, setEtfsList] = useState([])
   const [loading, setLoading] = useState(true)
   const [editCuenta, setEditCuenta] = useState(null)
   const [editSaldo, setEditSaldo] = useState('')
@@ -16,12 +17,14 @@ export default function Dashboard() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: c }, { data: m }] = await Promise.all([
+    const [{ data: c }, { data: m }, { data: e }] = await Promise.all([
       supabase.from('cuentas').select('*'),
       supabase.from('meses').select('*'),
+      supabase.from('cartera_etfs').select('*'),
     ])
     setCuentas(c || [])
     setMeses(m || [])
+    setEtfsList(e || [])
     setLoading(false)
   }
 
@@ -43,7 +46,19 @@ export default function Dashboard() {
   async function guardarSaldo() {
     if (!editCuenta) return
     setSaving(true)
-    await supabase.from('cuentas').update({ saldo: Number(editSaldo) }).eq('id', editCuenta.id)
+    const nuevoSaldo = Number(editSaldo)
+    await supabase.from('cuentas').update({ saldo: nuevoSaldo }).eq('id', editCuenta.id)
+
+    // Si es cuenta ETF, recalcula precio_actual en cartera_etfs
+    if (editCuenta.tipo === 'etf') {
+      const ticker = editCuenta.nombre.replace('TR — ', '')
+      const etf = etfsList.find(e => e.ticker === ticker)
+      if (etf && etf.num_titulos > 0) {
+        const nuevoPrecio = nuevoSaldo / etf.num_titulos
+        await supabase.from('cartera_etfs').update({ precio_actual: nuevoPrecio }).eq('id', etf.id)
+      }
+    }
+
     setSaving(false)
     setEditCuenta(null)
     setEditSaldo('')
