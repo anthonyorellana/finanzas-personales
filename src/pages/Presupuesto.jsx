@@ -149,7 +149,7 @@ export default function Presupuesto() {
     const finStr = fin.toISOString().split('T')[0]
     const { data } = await supabase
       .from('transacciones')
-      .select('importe, tipo, descripcion, fecha, categoria')
+      .select('importe, tipo, descripcion, fecha, categoria, cuentas(tipo, nombre)')
       .gte('fecha', inicioStr)
       .lte('fecha', finStr)
       .in('tipo', ['⬇ Gasto', '⬆ Ingreso'])
@@ -537,7 +537,7 @@ export default function Presupuesto() {
         const diasRestantes = diasTotales - diasTranscurridos
 
         const ingresosCiclo = txCiclo
-          .filter(t => t.tipo === '⬆ Ingreso')
+          .filter(t => t.tipo === '⬆ Ingreso' && t.cuentas?.tipo === 'corriente')
           .reduce((s, t) => s + Number(t.importe), 0)
         const gastosCiclo = txCiclo
           .filter(t => t.tipo === '⬇ Gasto')
@@ -662,25 +662,30 @@ export default function Presupuesto() {
                     <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>
                       Movimientos ({txCiclo.length})
                     </div>
-                    {txCiclo.slice(0, 8).map((t, i) => (
-                      <div key={i} style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: '13px',
-                      }}>
-                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', minWidth: 0 }}>
-                          <span style={{ color: 'var(--text2)', whiteSpace: 'nowrap', fontSize: '11px' }}>{t.fecha}</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {t.descripcion || t.tipo}
+                    {txCiclo.slice(0, 8).map((t, i) => {
+                      const esIngresoNoContado = t.tipo === '⬆ Ingreso' && t.cuentas?.tipo !== 'corriente'
+                      return (
+                        <div key={i} style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: '13px',
+                          opacity: esIngresoNoContado ? 0.45 : 1,
+                        }}>
+                          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', minWidth: 0 }}>
+                            <span style={{ color: 'var(--text2)', whiteSpace: 'nowrap', fontSize: '11px' }}>{t.fecha}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {t.descripcion || t.tipo}
+                              {esIngresoNoContado && <span style={{ fontSize: '10px', color: 'var(--text2)', marginLeft: '4px' }}>(transferencia)</span>}
+                            </span>
+                          </div>
+                          <span style={{
+                            fontWeight: '600', whiteSpace: 'nowrap', marginLeft: '12px',
+                            color: t.tipo === '⬆ Ingreso' ? 'var(--green)' : 'var(--red)',
+                          }}>
+                            {t.tipo === '⬆ Ingreso' ? '+' : '-'}{fmt(Math.abs(t.importe))}
                           </span>
                         </div>
-                        <span style={{
-                          fontWeight: '600', whiteSpace: 'nowrap', marginLeft: '12px',
-                          color: t.tipo === '⬆ Ingreso' ? 'var(--green)' : 'var(--red)',
-                        }}>
-                          {t.tipo === '⬆ Ingreso' ? '+' : '-'}{fmt(Math.abs(t.importe))}
-                        </span>
-                      </div>
-                    ))}
+                      )
+                    })}
                     {txCiclo.length > 8 && (
                       <div style={{ fontSize: '12px', color: 'var(--text2)', paddingTop: '8px', textAlign: 'center' }}>
                         ...y {txCiclo.length - 8} más
