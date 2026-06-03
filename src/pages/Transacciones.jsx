@@ -144,7 +144,7 @@ export default function Transacciones() {
   if (loading) return <div style={{ color: 'var(--text2)', padding: '40px' }}>Cargando...</div>
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div style={{ maxWidth: '900px', marginInline: 'auto' }}>
       {/* Modal editar categoría */}
       {editCategoria && (
         <div style={{

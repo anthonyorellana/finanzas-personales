@@ -160,7 +160,7 @@ export default function Presupuesto() {
   const paraInvertir = ingresos - presupuesto - aportadoETFsMes
 
   return (
-    <div style={{ maxWidth: '700px' }}>
+    <div style={{ maxWidth: '700px', marginInline: 'auto' }}>
       {editFijo && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,

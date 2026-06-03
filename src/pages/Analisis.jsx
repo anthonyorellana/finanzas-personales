@@ -111,7 +111,7 @@ export default function Analisis() {
   if (loading) return <div style={{ color: 'var(--text2)', padding: '40px' }}>Cargando...</div>
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div style={{ maxWidth: '900px', marginInline: 'auto' }}>
       <h1 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '24px' }}>📉 Análisis Histórico</h1>
 
       {/* Resumen total */}

@@ -99,7 +99,7 @@ export default function Cartera() {
   if (loading) return <div style={{ color: 'var(--text2)', padding: '40px' }}>Cargando...</div>
 
   return (
-    <div style={{ maxWidth: '800px' }}>
+    <div style={{ maxWidth: '800px', marginInline: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: '700' }}>📈 Cartera — Trade Republic</h1>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
