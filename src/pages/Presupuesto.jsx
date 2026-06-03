@@ -129,6 +129,12 @@ export default function Presupuesto() {
     load()
   }
 
+  async function reiniciarCiclo() {
+    if (!confirm('¿Reiniciar el ciclo? Se desmarcarán todos los gastos fijos como no pagados.')) return
+    await supabase.from('gastos_fijos').update({ pagado_ciclo: false }).eq('activo', true)
+    load()
+  }
+
   async function cargarCiclo(offset) {
     setLoadingCiclo(true)
     const { inicio, fin } = getCicloFechas(offset)
@@ -331,11 +337,18 @@ export default function Presupuesto() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ fontSize: '15px', fontWeight: '600' }}>🔒 Gastos fijos del mes</div>
-          <button onClick={() => setShowNuevoFijo(!showNuevoFijo)} style={{
-            background: 'var(--bg3)', border: '1px solid var(--border)',
-            borderRadius: '8px', padding: '5px 12px', cursor: 'pointer',
-            color: 'var(--text2)', fontSize: '13px',
-          }}>+ Añadir</button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={reiniciarCiclo} style={{
+              background: 'var(--bg3)', border: '1px solid var(--border)',
+              borderRadius: '8px', padding: '5px 12px', cursor: 'pointer',
+              color: 'var(--text2)', fontSize: '13px',
+            }}>🔄 Reiniciar ciclo</button>
+            <button onClick={() => setShowNuevoFijo(!showNuevoFijo)} style={{
+              background: 'var(--bg3)', border: '1px solid var(--border)',
+              borderRadius: '8px', padding: '5px 12px', cursor: 'pointer',
+              color: 'var(--text2)', fontSize: '13px',
+            }}>+ Añadir</button>
+          </div>
         </div>
 
         {showNuevoFijo && (
