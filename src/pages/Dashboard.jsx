@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase'
 
 const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
 const OBJETIVOS = { santander: 1100, trLiquidez: 7500, etfs: 730 }
-const esInversion = (nombre) => /^inversi[oó]n/i.test((nombre || '').trim())
 
 export default function Dashboard() {
   const [cuentas, setCuentas] = useState([])
@@ -77,7 +76,7 @@ export default function Dashboard() {
 
   const mesesOrdenados = [...meses].sort((a, b) => a.mes.localeCompare(b.mes))
   const mesActual = mesesOrdenados[mesesOrdenados.length - 1]
-  const aportadoETFs = fijos.filter(f => esInversion(f.nombre)).reduce((s, f) => s + Number(f.importe), 0)
+  const aportadoETFs = fijos.filter(f => f.es_inversion).reduce((s, f) => s + Number(f.importe), 0)
   const ahorroColchon = mesActual
     ? Number(mesActual.ingresos_estimados) - Number(mesActual.presupuesto_gastos) - aportadoETFs
     : 0

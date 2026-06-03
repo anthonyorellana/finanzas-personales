@@ -33,7 +33,7 @@ export default function Presupuesto() {
   const [editFijo, setEditFijo] = useState(null)
   const [editFijoVal, setEditFijoVal] = useState('')
   const [showNuevoFijo, setShowNuevoFijo] = useState(false)
-  const [formFijo, setFormFijo] = useState({ nombre: '', emoji: '💸', importe: '' })
+  const [formFijo, setFormFijo] = useState({ nombre: '', emoji: '💸', importe: '', es_inversion: false })
   const [formMes, setFormMes] = useState({ ingresos_estimados: '', presupuesto_gastos: '', ahorro_objetivo: '' })
   const [formNuevo, setFormNuevo] = useState({ mes: '', ingresos_estimados: '', presupuesto_gastos: '', notas: '' })
   const [cicloOffset, setCicloOffset] = useState(0)
@@ -110,6 +110,7 @@ export default function Presupuesto() {
       nombre: formFijo.nombre,
       emoji: formFijo.emoji || '💸',
       importe: Number(formFijo.importe),
+      es_inversion: formFijo.es_inversion,
       activo: true,
     }])
     setFormFijo({ nombre: '', emoji: '💸', importe: '' })
@@ -144,8 +145,7 @@ export default function Presupuesto() {
   const totalFijos = fijos.reduce((s, f) => s + Number(f.importe), 0)
   const presupuesto = mesActual?.presupuesto_gastos || 0
   const ingresos = mesActual?.ingresos_estimados || 0
-  const esInversion = (nombre) => /^inversi[oó]n/i.test((nombre || '').trim())
-  const aportadoETFsMes = fijos.filter(f => esInversion(f.nombre)).reduce((s, f) => s + Number(f.importe), 0)
+  const aportadoETFsMes = fijos.filter(f => f.es_inversion).reduce((s, f) => s + Number(f.importe), 0)
   const paraInvertir = ingresos - presupuesto - aportadoETFsMes
 
   return (
@@ -365,6 +365,14 @@ export default function Presupuesto() {
                   borderRadius: '6px', padding: '6px 10px', color: 'var(--text)', fontSize: '14px',
                 }} />
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-end', paddingBottom: '7px' }}>
+              <input type="checkbox" id="esInvFijo" checked={formFijo.es_inversion}
+                onChange={e => setFormFijo({ ...formFijo, es_inversion: e.target.checked })}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+              <label htmlFor="esInvFijo" style={{ fontSize: '13px', color: 'var(--text2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                Es inversión (ETF)
+              </label>
+            </div>
             <div style={{ display: 'flex', gap: '6px' }}>
               <button onClick={crearFijo} style={{
                 background: 'var(--green)', color: 'white', border: 'none',
@@ -426,10 +434,9 @@ export default function Presupuesto() {
           : 0
 
         // Inversión vs ahorro
-        const esInversion = (nombre) => /^inversi[oó]n/i.test((nombre || '').trim())
-        const fijosSinInversion = fijos.filter(f => !esInversion(f.nombre))
+        const fijosSinInversion = fijos.filter(f => !f.es_inversion)
         const totalFijosSinInv  = fijosSinInversion.reduce((s, f) => s + Number(f.importe), 0)
-        const aportadoETFsCiclo = fijos.filter(f => esInversion(f.nombre)).reduce((s, f) => s + Number(f.importe), 0)
+        const aportadoETFsCiclo = fijos.filter(f => f.es_inversion).reduce((s, f) => s + Number(f.importe), 0)
 
         // Fijos pendientes: total fijos sin inversión menos lo ya pagado (hogar, alquiler, crédito...)
         const reHogar = /hogar|alquiler|cr[eé]dito|tarjeta|liquidaci[oó]n/i
