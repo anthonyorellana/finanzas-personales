@@ -36,9 +36,6 @@ export default function Presupuesto() {
   const [formFijo, setFormFijo] = useState({ nombre: '', emoji: '💸', importe: '' })
   const [formMes, setFormMes] = useState({ ingresos_estimados: '', presupuesto_gastos: '', ahorro_objetivo: '' })
   const [formNuevo, setFormNuevo] = useState({ mes: '', ingresos_estimados: '', presupuesto_gastos: '', notas: '' })
-  const [gastoReal, setGastoReal] = useState(0)
-  const [gastoExtraordinario, setGastoExtraordinario] = useState(0)
-  const [gastoManual, setGastoManual] = useState('')
   const [cicloOffset, setCicloOffset] = useState(0)
   const [txCiclo, setTxCiclo] = useState([])
   const [loadingCiclo, setLoadingCiclo] = useState(false)
@@ -61,31 +58,14 @@ export default function Presupuesto() {
     setMesActual(actual)
     if (actual) {
       setFormMes({ ingresos_estimados: actual.ingresos_estimados, presupuesto_gastos: actual.presupuesto_gastos, ahorro_objetivo: actual.ahorro_objetivo || '' })
-      await cargarGastoReal(actual.mes)
     }
     setLoading(false)
-  }
-
-  async function cargarGastoReal(mes) {
-    const { data } = await supabase
-      .from('transacciones')
-      .select('importe, tipo, es_extraordinario')
-      .eq('mes', mes)
-    const gastos = (data || []).filter(t => t.tipo === '⬇ Gasto')
-    const total = gastos.reduce((s, t) => s + Math.abs(t.importe), 0)
-    const extraordinario = gastos
-      .filter(t => t.es_extraordinario)
-      .reduce((s, t) => s + Math.abs(t.importe), 0)
-    setGastoReal(total)
-    setGastoExtraordinario(extraordinario)
-    setGastoManual('')
   }
 
   async function seleccionarMes(id) {
     const m = meses.find(m => m.id === id)
     setMesActual(m)
     setFormMes({ ingresos_estimados: m.ingresos_estimados, presupuesto_gastos: m.presupuesto_gastos, ahorro_objetivo: m.ahorro_objetivo || '' })
-    await cargarGastoReal(m.mes)
   }
 
   async function actualizarMes() {
@@ -165,18 +145,6 @@ export default function Presupuesto() {
   const presupuesto = mesActual?.presupuesto_gastos || 0
   const ingresos = mesActual?.ingresos_estimados || 0
   const paraInvertir = ingresos - presupuesto
-  const gastoEfectivo = gastoManual !== '' ? Number(gastoManual) : gastoReal
-  const disponible = presupuesto - gastoEfectivo
-  const pctGastado = presupuesto > 0 ? Math.min((gastoEfectivo / presupuesto) * 100, 100) : 0
-
-  const hoy = new Date()
-  const diaActual = hoy.getDate()
-  const diasMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate()
-  const proyeccion = diaActual > 0 ? (gastoEfectivo / diaActual) * diasMes : 0
-  const desviacion = proyeccion - presupuesto
-  const gastoNormalizado = gastoEfectivo - gastoExtraordinario
-  const proyeccionNorm = diaActual > 0 ? (gastoNormalizado / diaActual) * diasMes : 0
-  const desviacionNorm = proyeccionNorm - presupuesto
 
   return (
     <div style={{ maxWidth: '700px' }}>
@@ -345,106 +313,6 @@ export default function Presupuesto() {
           {mesActual.notas && (
             <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text2)', background: 'var(--bg3)', padding: '10px', borderRadius: '8px' }}>
               {mesActual.notas}
-            </div>
-          )}
-        </div>
-      )}
-
-      {mesActual && (
-        <div style={{
-          background: 'var(--bg2)', border: '1px solid var(--border)',
-          borderRadius: '16px', padding: '20px', marginBottom: '20px',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div style={{ fontSize: '15px', fontWeight: '600' }}>💰 Gasto real del mes</div>
-            <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Auto: {fmt(gastoReal)}</div>
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '6px' }}>✏️ Corregir manualmente (opcional)</div>
-            <input
-              type="number"
-              placeholder={`Calculado automáticamente: ${gastoReal.toFixed(2)}€`}
-              value={gastoManual}
-              onChange={e => setGastoManual(e.target.value)}
-              style={{
-                width: '100%', background: 'var(--bg3)', border: '2px solid var(--yellow)',
-                borderRadius: '10px', padding: '10px 14px', color: 'var(--text)', fontSize: '16px',
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '8px' }}>
-            <span style={{ color: 'var(--text2)' }}>{fmt(gastoEfectivo)} de {fmt(presupuesto)}</span>
-            <span style={{ color: pctGastado > 90 ? 'var(--red)' : 'var(--text)' }}>{pctGastado.toFixed(0)}%</span>
-          </div>
-          <div style={{ background: 'var(--bg3)', borderRadius: '99px', height: '10px', marginBottom: '20px' }}>
-            <div style={{
-              width: `${pctGastado}%`, height: '10px', borderRadius: '99px',
-              background: pctGastado > 90 ? 'var(--red)' : pctGastado > 70 ? 'var(--yellow)' : 'var(--green)',
-              transition: 'width 0.4s ease',
-            }} />
-          </div>
-
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
-            <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: '12px', padding: '14px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Gastos variables</div>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--yellow)' }}>
-                {fmt(Math.max(gastoEfectivo - totalFijos, 0))}
-              </div>
-            </div>
-            {gastoExtraordinario > 0 && (
-              <div style={{ flex: 1, background: 'rgba(245,158,11,0.08)', border: '1px solid var(--yellow)', borderRadius: '12px', padding: '14px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--yellow)' }}>⭐ Excepcionales</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--yellow)' }}>
-                  {fmt(gastoExtraordinario)}
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '4px' }}>
-                  Normal: {fmt(gastoNormalizado)}
-                </div>
-              </div>
-            )}
-            <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: '12px', padding: '14px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Disponible</div>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: disponible >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                {fmt(disponible)}
-              </div>
-            </div>
-          </div>
-
-          <div style={{
-            background: 'var(--bg3)', borderRadius: '12px', padding: '14px',
-            border: `1px solid ${desviacion > 0 ? 'var(--red)' : 'var(--green)'}`,
-            marginBottom: gastoExtraordinario > 0 ? '10px' : '0',
-          }}>
-            <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '6px' }}>
-              🎯 Proyección de cierre — día {diaActual} de {diasMes}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '22px', fontWeight: '700', color: desviacion > 0 ? 'var(--red)' : 'var(--green)' }}>
-                {fmt(proyeccion)}
-              </div>
-              <div style={{ fontSize: '13px', color: desviacion > 0 ? 'var(--red)' : 'var(--green)', textAlign: 'right' }}>
-                {desviacion > 0 ? `⚠️ +${fmt(desviacion)} sobre presupuesto` : `✅ ${fmt(Math.abs(desviacion))} bajo presupuesto`}
-              </div>
-            </div>
-          </div>
-          {gastoExtraordinario > 0 && (
-            <div style={{
-              background: 'rgba(245,158,11,0.06)', borderRadius: '12px', padding: '14px',
-              border: `1px solid ${desviacionNorm > 0 ? 'var(--red)' : 'var(--yellow)'}`,
-            }}>
-              <div style={{ fontSize: '12px', color: 'var(--yellow)', marginBottom: '6px' }}>
-                ⭐ Proyección normalizada (sin excepcionales)
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: '22px', fontWeight: '700', color: desviacionNorm > 0 ? 'var(--red)' : 'var(--green)' }}>
-                  {fmt(proyeccionNorm)}
-                </div>
-                <div style={{ fontSize: '13px', color: desviacionNorm > 0 ? 'var(--red)' : 'var(--green)', textAlign: 'right' }}>
-                  {desviacionNorm > 0 ? `⚠️ +${fmt(desviacionNorm)} sobre presupuesto` : `✅ ${fmt(Math.abs(desviacionNorm))} bajo presupuesto`}
-                </div>
-              </div>
             </div>
           )}
         </div>
