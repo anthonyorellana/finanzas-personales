@@ -34,7 +34,7 @@ export default function Presupuesto() {
   const [editFijoVal, setEditFijoVal] = useState('')
   const [showNuevoFijo, setShowNuevoFijo] = useState(false)
   const [formFijo, setFormFijo] = useState({ nombre: '', emoji: '💸', importe: '' })
-  const [formMes, setFormMes] = useState({ ingresos_estimados: '', presupuesto_gastos: '' })
+  const [formMes, setFormMes] = useState({ ingresos_estimados: '', presupuesto_gastos: '', ahorro_objetivo: '' })
   const [formNuevo, setFormNuevo] = useState({ mes: '', ingresos_estimados: '', presupuesto_gastos: '', notas: '' })
   const [gastoReal, setGastoReal] = useState(0)
   const [gastoExtraordinario, setGastoExtraordinario] = useState(0)
@@ -60,7 +60,7 @@ export default function Presupuesto() {
     const actual = lista.find(m => m.mes === mesHoy) || lista[lista.length - 1]
     setMesActual(actual)
     if (actual) {
-      setFormMes({ ingresos_estimados: actual.ingresos_estimados, presupuesto_gastos: actual.presupuesto_gastos })
+      setFormMes({ ingresos_estimados: actual.ingresos_estimados, presupuesto_gastos: actual.presupuesto_gastos, ahorro_objetivo: actual.ahorro_objetivo || '' })
       await cargarGastoReal(actual.mes)
     }
     setLoading(false)
@@ -84,7 +84,7 @@ export default function Presupuesto() {
   async function seleccionarMes(id) {
     const m = meses.find(m => m.id === id)
     setMesActual(m)
-    setFormMes({ ingresos_estimados: m.ingresos_estimados, presupuesto_gastos: m.presupuesto_gastos })
+    setFormMes({ ingresos_estimados: m.ingresos_estimados, presupuesto_gastos: m.presupuesto_gastos, ahorro_objetivo: m.ahorro_objetivo || '' })
     await cargarGastoReal(m.mes)
   }
 
@@ -94,6 +94,7 @@ export default function Presupuesto() {
     await supabase.from('meses').update({
       ingresos_estimados: Number(formMes.ingresos_estimados),
       presupuesto_gastos: Number(formMes.presupuesto_gastos),
+      ahorro_objetivo: Number(formMes.ahorro_objetivo) || 0,
     }).eq('id', mesActual.id)
     setSaving(false)
     setEditMes(false)
@@ -296,6 +297,7 @@ export default function Presupuesto() {
               {[
                 { label: 'Ingresos estimados (€)', key: 'ingresos_estimados' },
                 { label: 'Presupuesto gastos (€)', key: 'presupuesto_gastos' },
+                { label: 'Ahorro objetivo al colchón (€)', key: 'ahorro_objetivo' },
               ].map(({ label, key }) => (
                 <div key={key} style={{ flex: '1', minWidth: '180px' }}>
                   <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '6px' }}>{label}</div>
@@ -332,6 +334,12 @@ export default function Presupuesto() {
                 <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Para invertir</div>
                 <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--blue)' }}>{fmt(paraInvertir)}</div>
               </div>
+              {Number(mesActual.ahorro_objetivo) > 0 && (
+                <div>
+                  <div style={{ fontSize: '12px', color: 'var(--text2)' }}>💾 Ahorro objetivo</div>
+                  <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--purple)' }}>{fmt(mesActual.ahorro_objetivo)}</div>
+                </div>
+              )}
             </div>
           )}
           {mesActual.notas && (
