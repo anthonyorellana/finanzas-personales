@@ -92,7 +92,7 @@ export default function Dashboard() {
   )
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div style={{ maxWidth: '900px', marginInline: 'auto' }}>
       <h1 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '24px' }}>
         💰 Panel de Finanzas
       </h1>
@@ -143,10 +143,10 @@ export default function Dashboard() {
       )}
 
       {/* Tarjetas principales */}
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '24px', maxWidth: '900px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div style={{
           background: 'var(--bg2)', border: '1px solid var(--border)',
-          borderRadius: '16px', padding: '20px', flex: '1', minWidth: '200px',
+          borderRadius: '16px', padding: '20px',
         }}>
           <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>💶 Patrimonio Total</div>
           <div style={{ fontSize: '26px', fontWeight: '700', color: 'var(--green)' }}>{fmt(patrimonio)}</div>
@@ -154,7 +154,7 @@ export default function Dashboard() {
         {cuentas.map(c => (
           <div key={c.id} style={{
             background: 'var(--bg2)', border: '1px solid var(--border)',
-            borderRadius: '16px', padding: '20px', flex: '1', minWidth: '200px',
+            borderRadius: '16px', padding: '20px',
             position: 'relative',
           }}>
             <button
