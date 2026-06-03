@@ -176,42 +176,65 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Tarjetas principales */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <div style={{
-          background: 'var(--bg2)', border: '1px solid var(--border)',
-          borderRadius: '16px', padding: '20px',
-        }}>
-          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>💶 Patrimonio Total</div>
-          <div style={{ fontSize: '26px', fontWeight: '700', color: 'var(--green)' }}>{fmt(patrimonio)}</div>
-          {variacion !== null && (
-            <div style={{ fontSize: '12px', marginTop: '6px', color: variacion >= 0 ? 'var(--green)' : 'var(--red)' }}>
-              {variacion >= 0 ? '+' : ''}{fmt(variacion)} ({variacion >= 0 ? '+' : ''}{variacionPct.toFixed(1)}%) vs {snapshotAnterior.mes}
-            </div>
-          )}
-        </div>
-        {cuentas.map(c => (
-          <div key={c.id} style={{
-            background: 'var(--bg2)', border: '1px solid var(--border)',
-            borderRadius: '16px', padding: '20px',
-            position: 'relative',
-          }}>
-            <button
-              onClick={() => { setEditCuenta(c); setEditSaldo(c.saldo) }}
-              style={{
-                position: 'absolute', top: '12px', right: '12px',
-                background: 'none', border: 'none', color: 'var(--text2)',
-                cursor: 'pointer', fontSize: '14px', padding: '2px',
-              }}
-              title="Editar saldo"
-            >✏️</button>
-            <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>
-              {c.tipo === 'corriente' ? '🏦' : c.tipo === 'liquidez' ? '📱' : '📈'} {c.nombre}
-            </div>
-            <div style={{ fontSize: '22px', fontWeight: '700' }}>{fmt(c.saldo)}</div>
-            {c.notas && <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '4px' }}>{c.notas}</div>}
+      {/* Patrimonio Total — tarjeta destacada */}
+      <div style={{
+        background: 'var(--bg2)', border: '1px solid var(--border)',
+        borderRadius: '16px', padding: '20px', marginBottom: '20px',
+      }}>
+        <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>💶 Patrimonio Total</div>
+        <div style={{ fontSize: '26px', fontWeight: '700', color: 'var(--green)' }}>{fmt(patrimonio)}</div>
+        {variacion !== null && (
+          <div style={{ fontSize: '12px', marginTop: '6px', color: variacion >= 0 ? 'var(--green)' : 'var(--red)' }}>
+            {variacion >= 0 ? '+' : ''}{fmt(variacion)} ({variacion >= 0 ? '+' : ''}{variacionPct.toFixed(1)}%) vs {snapshotAnterior.mes}
           </div>
-        ))}
+        )}
+      </div>
+
+      {/* Grupos de cuentas */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+        {[
+          { label: 'Día a día',    tipo: 'corriente' },
+          { label: 'Colchón',      tipo: 'liquidez'  },
+          { label: 'Inversiones',  tipo: 'etf'       },
+        ].map(({ label, tipo }) => {
+          const grupo = cuentas.filter(c => c.tipo === tipo)
+          if (grupo.length === 0) return null
+          const subtotal = grupo.reduce((s, c) => s + Number(c.saldo), 0)
+          return (
+            <div key={tipo}>
+              <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '8px',
+                            display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <span style={{ fontWeight: '600' }}>{label}</span>
+                <span>· {fmt(subtotal)}</span>
+              </div>
+              <div style={{ display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                            gap: '16px' }}>
+                {grupo.map(c => (
+                  <div key={c.id} style={{
+                    background: 'var(--bg2)', border: '1px solid var(--border)',
+                    borderRadius: '16px', padding: '20px', position: 'relative',
+                  }}>
+                    <button
+                      onClick={() => { setEditCuenta(c); setEditSaldo(c.saldo) }}
+                      style={{
+                        position: 'absolute', top: '12px', right: '12px',
+                        background: 'none', border: 'none', color: 'var(--text2)',
+                        cursor: 'pointer', fontSize: '14px', padding: '2px',
+                      }}
+                      title="Editar saldo"
+                    >✏️</button>
+                    <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>
+                      {c.tipo === 'corriente' ? '🏦' : c.tipo === 'liquidez' ? '📱' : '📈'} {c.nombre}
+                    </div>
+                    <div style={{ fontSize: '22px', fontWeight: '700' }}>{fmt(c.saldo)}</div>
+                    {c.notas && <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '4px' }}>{c.notas}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* Snapshot patrimonio */}
@@ -230,43 +253,80 @@ export default function Dashboard() {
       {/* Mes actual */}
       {mesActual && (
         <div style={{
-          background: 'var(--bg2)', border: '1px solid var(--border)',
-          borderRadius: '16px', padding: '20px', marginBottom: '24px',
+          display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(0, 2fr)',
+          gap: '16px', marginBottom: '24px', alignItems: 'start',
         }}>
-          <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>
-            📅 {mesActual.mes} — Resumen
-          </div>
-          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Ingresos estimados</div>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--green)' }}>{fmt(mesActual.ingresos_estimados)}</div>
+          {/* Tasa de ahorro — tarjeta destacada */}
+          <div style={{
+            background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: '16px', padding: '20px', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '12px' }}>
+              📊 Tasa de ahorro · {mesActual.mes}
             </div>
-            <div>
-              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Presupuesto gastos</div>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--red)' }}>{fmt(mesActual.presupuesto_gastos)}</div>
+            <div style={{
+              fontSize: '42px', fontWeight: '800', lineHeight: 1,
+              color: Number(tasaAhorro) >= 20 ? 'var(--green)'
+                   : Number(tasaAhorro) >= 10 ? 'var(--yellow)' : 'var(--red)',
+            }}>
+              {tasaAhorro}%
             </div>
-            <div>
-              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>📈 Aportado a ETFs</div>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--blue)' }}>{fmt(aportadoETFs)}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '10px' }}>
+              {fmt(ahorroColchon)} al colchón este mes
             </div>
-            <div>
-              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>💾 Ahorro al colchón</div>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: ahorroColchon >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                {fmt(ahorroColchon)}
+            <div style={{ marginTop: '14px' }}>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between',
+                fontSize: '10px', color: 'var(--text2)', marginBottom: '4px',
+              }}>
+                <span>0%</span><span>obj. 30%</span>
+              </div>
+              <div style={{ background: 'var(--bg3)', borderRadius: '99px', height: '6px' }}>
+                <div style={{
+                  width: `${Math.min((Number(tasaAhorro) / 30) * 100, 100)}%`,
+                  height: '6px', borderRadius: '99px',
+                  background: Number(tasaAhorro) >= 20 ? 'var(--green)'
+                             : Number(tasaAhorro) >= 10 ? 'var(--yellow)' : 'var(--red)',
+                  transition: 'width 0.5s ease',
+                }} />
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Tasa de ahorro</div>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: tasaAhorro > 0 ? 'var(--green)' : 'var(--red)' }}>
-                {tasaAhorro}%
+          </div>
+
+          {/* Resumen del mes */}
+          <div style={{
+            background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: '16px', padding: '20px',
+          }}>
+            <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>
+              📅 {mesActual.mes} — Resumen
+            </div>
+            <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Ingresos estimados</div>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--green)' }}>{fmt(mesActual.ingresos_estimados)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Presupuesto gastos</div>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--red)' }}>{fmt(mesActual.presupuesto_gastos)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--text2)' }}>📈 Aportado a ETFs</div>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--blue)' }}>{fmt(aportadoETFs)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--text2)' }}>💾 Ahorro al colchón</div>
+                <div style={{ fontSize: '20px', fontWeight: '700', color: ahorroColchon >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {fmt(ahorroColchon)}
+                </div>
               </div>
             </div>
+            {mesActual.notas && (
+              <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text2)', background: 'var(--bg3)', padding: '10px', borderRadius: '8px' }}>
+                {mesActual.notas}
+              </div>
+            )}
           </div>
-          {mesActual.notas && (
-            <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text2)', background: 'var(--bg3)', padding: '10px', borderRadius: '8px' }}>
-              {mesActual.notas}
-            </div>
-          )}
         </div>
       )}
 
