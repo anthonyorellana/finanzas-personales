@@ -126,7 +126,7 @@ export default function Dashboard() {
   )
 
   return (
-    <div style={{ maxWidth: '900px', marginInline: 'auto' }}>
+    <div style={{ maxWidth: '1100px', marginInline: 'auto' }}>
       <h1 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '24px' }}>
         💰 Panel de Finanzas
       </h1>
@@ -190,48 +190,32 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Grupos de cuentas */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
-        {[
-          { label: 'Día a día',    tipo: 'corriente' },
-          { label: 'Colchón',      tipo: 'liquidez'  },
-          { label: 'Inversiones',  tipo: 'etf'       },
-        ].map(({ label, tipo }) => {
-          const grupo = cuentas.filter(c => c.tipo === tipo)
-          if (grupo.length === 0) return null
-          const subtotal = grupo.reduce((s, c) => s + Number(c.saldo), 0)
+      {/* Tarjetas de cuentas — grid único */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        {cuentas.map(c => {
+          const grupoLabel = c.tipo === 'corriente' ? 'Día a día' : c.tipo === 'liquidez' ? 'Colchón' : 'Inversiones'
           return (
-            <div key={tipo}>
-              <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '8px',
-                            display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <span style={{ fontWeight: '600' }}>{label}</span>
-                <span>· {fmt(subtotal)}</span>
+            <div key={c.id} style={{
+              background: 'var(--bg2)', border: '1px solid var(--border)',
+              borderRadius: '16px', padding: '20px', position: 'relative',
+            }}>
+              <div style={{ fontSize: '10px', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px' }}>
+                {grupoLabel}
               </div>
-              <div style={{ display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                            gap: '16px' }}>
-                {grupo.map(c => (
-                  <div key={c.id} style={{
-                    background: 'var(--bg2)', border: '1px solid var(--border)',
-                    borderRadius: '16px', padding: '20px', position: 'relative',
-                  }}>
-                    <button
-                      onClick={() => { setEditCuenta(c); setEditSaldo(c.saldo) }}
-                      style={{
-                        position: 'absolute', top: '12px', right: '12px',
-                        background: 'none', border: 'none', color: 'var(--text2)',
-                        cursor: 'pointer', fontSize: '14px', padding: '2px',
-                      }}
-                      title="Editar saldo"
-                    >✏️</button>
-                    <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>
-                      {c.tipo === 'corriente' ? '🏦' : c.tipo === 'liquidez' ? '📱' : '📈'} {c.nombre}
-                    </div>
-                    <div style={{ fontSize: '22px', fontWeight: '700' }}>{fmt(c.saldo)}</div>
-                    {c.notas && <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '4px' }}>{c.notas}</div>}
-                  </div>
-                ))}
+              <button
+                onClick={() => { setEditCuenta(c); setEditSaldo(c.saldo) }}
+                style={{
+                  position: 'absolute', top: '12px', right: '12px',
+                  background: 'none', border: 'none', color: 'var(--text2)',
+                  cursor: 'pointer', fontSize: '14px', padding: '2px',
+                }}
+                title="Editar saldo"
+              >✏️</button>
+              <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>
+                {c.tipo === 'corriente' ? '🏦' : c.tipo === 'liquidez' ? '📱' : '📈'} {c.nombre}
               </div>
+              <div style={{ fontSize: '22px', fontWeight: '700' }}>{fmt(c.saldo)}</div>
+              {c.notas && <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '4px' }}>{c.notas}</div>}
             </div>
           )
         })}
