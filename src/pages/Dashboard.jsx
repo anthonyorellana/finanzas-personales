@@ -74,8 +74,9 @@ export default function Dashboard() {
   const trLiquidez = cuentas.find(c => c.nombre === 'TR — Liquidez')?.saldo || 0
   const etfs = cuentas.filter(c => c.tipo === 'etf').reduce((s, c) => s + Number(c.saldo), 0)
 
-  const mesesOrdenados = [...meses].sort((a, b) => a.mes.localeCompare(b.mes))
-  const mesActual = mesesOrdenados[mesesOrdenados.length - 1]
+  const mesNaturalActual = new Date().toLocaleString('es-ES', { month: 'short', year: 'numeric' })
+    .replace('.', '').replace(/^\w/, c => c.toUpperCase())
+  const mesActual = meses.find(m => m.mes === mesNaturalActual) || meses[meses.length - 1]
   const aportadoETFs = fijos.filter(f => f.es_inversion).reduce((s, f) => s + Number(f.importe), 0)
   const ahorroColchon = mesActual
     ? Number(mesActual.ingresos_estimados) - Number(mesActual.presupuesto_gastos) - aportadoETFs
@@ -142,10 +143,10 @@ export default function Dashboard() {
       )}
 
       {/* Tarjetas principales */}
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '24px', maxWidth: '900px' }}>
         <div style={{
           background: 'var(--bg2)', border: '1px solid var(--border)',
-          borderRadius: '16px', padding: '20px', flex: '1', minWidth: '160px',
+          borderRadius: '16px', padding: '20px', flex: '1', minWidth: '200px',
         }}>
           <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '8px' }}>💶 Patrimonio Total</div>
           <div style={{ fontSize: '26px', fontWeight: '700', color: 'var(--green)' }}>{fmt(patrimonio)}</div>
@@ -153,7 +154,7 @@ export default function Dashboard() {
         {cuentas.map(c => (
           <div key={c.id} style={{
             background: 'var(--bg2)', border: '1px solid var(--border)',
-            borderRadius: '16px', padding: '20px', flex: '1', minWidth: '160px',
+            borderRadius: '16px', padding: '20px', flex: '1', minWidth: '200px',
             position: 'relative',
           }}>
             <button
