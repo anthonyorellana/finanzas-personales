@@ -124,6 +124,11 @@ export default function Presupuesto() {
     load()
   }
 
+  async function togglePagadoCiclo(id, actual) {
+    await supabase.from('gastos_fijos').update({ pagado_ciclo: !actual }).eq('id', id)
+    load()
+  }
+
   async function cargarCiclo(offset) {
     setLoadingCiclo(true)
     const { inicio, fin } = getCicloFechas(offset)
@@ -390,10 +395,22 @@ export default function Presupuesto() {
           <div key={f.id} style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             padding: '10px 0', borderBottom: '1px solid var(--border)',
+            opacity: f.pagado_ciclo ? 0.5 : 1,
+            transition: 'opacity 0.2s',
           }}>
-            <span style={{ fontSize: '14px' }}>{f.emoji} {f.nombre}</span>
+            <span style={{ fontSize: '14px' }}>
+              {f.pagado_ciclo && <span style={{ color: 'var(--green)', marginRight: '6px' }}>✓</span>}
+              {f.emoji} {f.nombre}
+            </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontWeight: '600', color: 'var(--red)' }}>{fmt(f.importe)}</span>
+              <button
+                onClick={() => togglePagadoCiclo(f.id, f.pagado_ciclo)}
+                title={f.pagado_ciclo ? 'Marcar como pendiente' : 'Marcar como pagado'}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '2px' }}
+              >
+                {f.pagado_ciclo ? '✅' : '⬜'}
+              </button>
               <button onClick={() => { setEditFijo(f); setEditFijoVal(f.importe) }} style={{
                 background: 'none', border: 'none', color: 'var(--text2)',
                 cursor: 'pointer', fontSize: '14px', padding: '2px',
@@ -438,12 +455,10 @@ export default function Presupuesto() {
         const totalFijosSinInv  = fijosSinInversion.reduce((s, f) => s + Number(f.importe), 0)
         const aportadoETFsCiclo = fijos.filter(f => f.es_inversion).reduce((s, f) => s + Number(f.importe), 0)
 
-        // Fijos pendientes: total fijos sin inversión menos lo ya pagado (hogar, alquiler, crédito...)
-        const reHogar = /hogar|alquiler|cr[eé]dito|tarjeta|liquidaci[oó]n/i
-        const gastosHogarCiclo = txCiclo
-          .filter(t => t.tipo === '⬇ Gasto' && reHogar.test((t.descripcion || '') + (t.categoria || '')))
-          .reduce((s, t) => s + Math.abs(Number(t.importe)), 0)
-        const fijosPendientes = Math.max(totalFijosSinInv - gastosHogarCiclo, 0)
+        const fijosPagados    = fijos.filter(f => !f.es_inversion && f.pagado_ciclo)
+                                     .reduce((s, f) => s + Number(f.importe), 0)
+        const fijosPendientes = fijos.filter(f => !f.es_inversion && !f.pagado_ciclo)
+                                     .reduce((s, f) => s + Number(f.importe), 0)
 
         const ahorroObjetivo = Number(mesActual?.ahorro_objetivo || 0)
 
@@ -547,9 +562,9 @@ export default function Presupuesto() {
                     <div style={{ fontSize: '18px', fontWeight: '700', color: fijosPendientes > 0 ? 'var(--red)' : 'var(--green)' }}>
                       {fmt(fijosPendientes)}
                     </div>
-                    {gastosHogarCiclo > 0 && (
-                      <div style={{ fontSize: '10px', color: 'var(--text2)', marginTop: '3px' }}>
-                        pagado: {fmt(gastosHogarCiclo)}
+                    {fijosPagados > 0 && (
+                      <div style={{ fontSize: '10px', color: 'var(--green)', marginTop: '3px' }}>
+                        ✓ pagado: {fmt(fijosPagados)}
                       </div>
                     )}
                   </div>
