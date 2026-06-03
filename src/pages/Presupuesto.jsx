@@ -547,6 +547,29 @@ export default function Presupuesto() {
           ? Math.min((gastosCiclo / ingresosCiclo) * 100, 100)
           : 0
 
+        // Inversión vs ahorro
+        const esInversion = (nombre) => /^inversi[oó]n/i.test((nombre || '').trim())
+        const fijosSinInversion = fijos.filter(f => !esInversion(f.nombre))
+        const totalFijosSinInv  = fijosSinInversion.reduce((s, f) => s + Number(f.importe), 0)
+        const aportadoETFsCiclo = fijos.filter(f => esInversion(f.nombre)).reduce((s, f) => s + Number(f.importe), 0)
+
+        // Fijos pendientes: total fijos sin inversión menos lo ya pagado (hogar, alquiler, crédito...)
+        const reHogar = /hogar|alquiler|cr[eé]dito|tarjeta|liquidaci[oó]n/i
+        const gastosHogarCiclo = txCiclo
+          .filter(t => t.tipo === '⬇ Gasto' && reHogar.test((t.descripcion || '') + (t.categoria || '')))
+          .reduce((s, t) => s + Math.abs(Number(t.importe)), 0)
+        const fijosPendientes = Math.max(totalFijosSinInv - gastosHogarCiclo, 0)
+
+        const ahorroObjetivo = Number(mesActual?.ahorro_objetivo || 0)
+
+        const ocioGastado = txCiclo
+          .filter(t => t.tipo === '⬇ Gasto' && /^(Ocio|Restaurantes)$/i.test(t.categoria || ''))
+          .reduce((s, t) => s + Math.abs(Number(t.importe)), 0)
+
+        const saldoRealProyect  = saldoCiclo - fijosPendientes - ahorroObjetivo
+        const disponibleOcio    = ingresosCiclo - totalFijosSinInv - aportadoETFsCiclo - ahorroObjetivo - ocioGastado
+        const ocioXdia          = diasRestantes > 0 ? disponibleOcio / diasRestantes : disponibleOcio
+
         // Agrupación por categoría
         const porCat = {}
         txCiclo.filter(t => t.tipo === '⬇ Gasto').forEach(t => {
@@ -631,6 +654,54 @@ export default function Presupuesto() {
                     </div>
                   </div>
                 )}
+
+                {/* Tarjetas ciclo extendidas */}
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  <div style={{ flex: 1, minWidth: '120px', background: 'var(--bg3)', borderRadius: '12px', padding: '14px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text2)', marginBottom: '6px' }}>🔒 Fijos pendientes</div>
+                    <div style={{ fontSize: '18px', fontWeight: '700', color: fijosPendientes > 0 ? 'var(--red)' : 'var(--green)' }}>
+                      {fmt(fijosPendientes)}
+                    </div>
+                    {gastosHogarCiclo > 0 && (
+                      <div style={{ fontSize: '10px', color: 'var(--text2)', marginTop: '3px' }}>
+                        pagado: {fmt(gastosHogarCiclo)}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: '120px', background: 'var(--bg3)', borderRadius: '12px', padding: '14px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text2)', marginBottom: '6px' }}>📊 Saldo real proyectado</div>
+                    <div style={{ fontSize: '18px', fontWeight: '700', color: saldoRealProyect >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                      {saldoRealProyect >= 0 ? '+' : ''}{fmt(saldoRealProyect)}
+                    </div>
+                    {ahorroObjetivo > 0 && (
+                      <div style={{ fontSize: '10px', color: 'var(--text2)', marginTop: '3px' }}>
+                        reserva: {fmt(ahorroObjetivo)}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{
+                    flex: 1, minWidth: '120px', borderRadius: '12px', padding: '14px',
+                    background: disponibleOcio < 0 ? 'rgba(239,68,68,0.1)' : 'var(--bg3)',
+                    border: disponibleOcio < 0 ? '1px solid var(--red)' : '1px solid transparent',
+                  }}>
+                    <div style={{ fontSize: '11px', color: disponibleOcio < 0 ? 'var(--red)' : 'var(--text2)', marginBottom: '6px' }}>
+                      🎉 Para mí (ocio)
+                    </div>
+                    <div style={{ fontSize: '18px', fontWeight: '700', color: disponibleOcio >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                      {disponibleOcio >= 0 ? '+' : ''}{fmt(disponibleOcio)}
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--text2)', marginTop: '3px' }}>
+                      {diasRestantes > 0
+                        ? `${ocioXdia >= 0 ? '+' : ''}${fmt(ocioXdia)}/día · ${diasRestantes}d restantes`
+                        : `gastado en ocio: ${fmt(ocioGastado)}`}
+                    </div>
+                    {disponibleOcio < 0 && (
+                      <div style={{ fontSize: '10px', color: 'var(--red)', marginTop: '4px', fontWeight: '600' }}>
+                        ⚠️ Te has pasado del presupuesto de ocio
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 {/* Desglose por categoría */}
                 {catOrdenadas.length > 0 && (

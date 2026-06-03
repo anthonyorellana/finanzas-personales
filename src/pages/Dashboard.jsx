@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
+const OBJETIVOS = { santander: 1100, trLiquidez: 7500, etfs: 730 }
+const esInversion = (nombre) => /^inversi[oó]n/i.test((nombre || '').trim())
 
 export default function Dashboard() {
   const [cuentas, setCuentas] = useState([])
   const [meses, setMeses] = useState([])
   const [etfsList, setEtfsList] = useState([])
+  const [fijos, setFijos] = useState([])
   const [loading, setLoading] = useState(true)
   const [editCuenta, setEditCuenta] = useState(null)
   const [editSaldo, setEditSaldo] = useState('')
@@ -17,14 +20,16 @@ export default function Dashboard() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: c }, { data: m }, { data: e }] = await Promise.all([
+    const [{ data: c }, { data: m }, { data: e }, { data: f }] = await Promise.all([
       supabase.from('cuentas').select('*'),
       supabase.from('meses').select('*'),
       supabase.from('cartera_etfs').select('*'),
+      supabase.from('gastos_fijos').select('*').eq('activo', true),
     ])
     setCuentas(c || [])
     setMeses(m || [])
     setEtfsList(e || [])
+    setFijos(f || [])
     setLoading(false)
   }
 
@@ -72,8 +77,12 @@ export default function Dashboard() {
 
   const mesesOrdenados = [...meses].sort((a, b) => a.mes.localeCompare(b.mes))
   const mesActual = mesesOrdenados[mesesOrdenados.length - 1]
-  const tasaAhorro = mesActual
-    ? ((mesActual.ingresos_estimados - mesActual.presupuesto_gastos) / mesActual.ingresos_estimados * 100).toFixed(1)
+  const aportadoETFs = fijos.filter(f => esInversion(f.nombre)).reduce((s, f) => s + Number(f.importe), 0)
+  const ahorroColchon = mesActual
+    ? Number(mesActual.ingresos_estimados) - Number(mesActual.presupuesto_gastos) - aportadoETFs
+    : 0
+  const tasaAhorro = mesActual && Number(mesActual.ingresos_estimados) > 0
+    ? (ahorroColchon / Number(mesActual.ingresos_estimados) * 100).toFixed(1)
     : 0
 
   if (loading) return (
@@ -198,9 +207,13 @@ export default function Dashboard() {
               <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--red)' }}>{fmt(mesActual.presupuesto_gastos)}</div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Para invertir</div>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--blue)' }}>
-                {fmt(mesActual.ingresos_estimados - mesActual.presupuesto_gastos)}
+              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>📈 Aportado a ETFs</div>
+              <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--blue)' }}>{fmt(aportadoETFs)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '12px', color: 'var(--text2)' }}>💾 Ahorro al colchón</div>
+              <div style={{ fontSize: '20px', fontWeight: '700', color: ahorroColchon >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                {fmt(ahorroColchon)}
               </div>
             </div>
             <div>
@@ -225,9 +238,9 @@ export default function Dashboard() {
       }}>
         <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>🚀 Objetivo — 2 Julio 2026</div>
         {[
-          { label: '🏦 Santander', actual: santander, objetivo: 1100 },
-          { label: '📱 TR Liquidez', actual: trLiquidez, objetivo: 6000 },
-          { label: '📈 ETFs', actual: etfs, objetivo: 730 },
+          { label: '🏦 Santander', actual: santander, objetivo: OBJETIVOS.santander },
+          { label: '📱 TR Liquidez', actual: trLiquidez, objetivo: OBJETIVOS.trLiquidez },
+          { label: '📈 ETFs', actual: etfs, objetivo: OBJETIVOS.etfs },
         ].map(({ label, actual, objetivo }) => {
           const pct = Math.min((actual / objetivo) * 100, 100).toFixed(0)
           return (
