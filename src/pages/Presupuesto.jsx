@@ -144,7 +144,9 @@ export default function Presupuesto() {
   const totalFijos = fijos.reduce((s, f) => s + Number(f.importe), 0)
   const presupuesto = mesActual?.presupuesto_gastos || 0
   const ingresos = mesActual?.ingresos_estimados || 0
-  const paraInvertir = ingresos - presupuesto
+  const esInversion = (nombre) => /^inversi[oó]n/i.test((nombre || '').trim())
+  const aportadoETFsMes = fijos.filter(f => esInversion(f.nombre)).reduce((s, f) => s + Number(f.importe), 0)
+  const paraInvertir = ingresos - presupuesto - aportadoETFsMes
 
   return (
     <div style={{ maxWidth: '700px' }}>
@@ -299,7 +301,7 @@ export default function Presupuesto() {
                 <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--red)' }}>{fmt(presupuesto)}</div>
               </div>
               <div>
-                <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Para invertir</div>
+                <div style={{ fontSize: '12px', color: 'var(--text2)' }}>Sobrante teórico</div>
                 <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--blue)' }}>{fmt(paraInvertir)}</div>
               </div>
               {Number(mesActual.ahorro_objetivo) > 0 && (
