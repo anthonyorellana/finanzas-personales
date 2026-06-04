@@ -6,6 +6,7 @@ import Transacciones from './pages/Transacciones'
 import Presupuesto from './pages/Presupuesto'
 import Cartera from './pages/Cartera'
 import Analisis from './pages/Analisis'
+import Objetivos from './pages/Objetivos'
 import './index.css'
 
 const NAV = [
@@ -13,6 +14,7 @@ const NAV = [
   { id: 'transacciones', label: 'Movimientos', icon: '💳' },
   { id: 'presupuesto', label: 'Presupuesto', icon: '📅' },
   { id: 'cartera', label: 'Cartera', icon: '📈' },
+  { id: 'objetivos', label: 'Objetivos', icon: '🎯' },
   { id: 'analisis', label: 'Análisis', icon: '📉' },
 ]
 
@@ -43,6 +45,7 @@ export default function App() {
       case 'transacciones': return <Transacciones />
       case 'presupuesto': return <Presupuesto />
       case 'cartera': return <Cartera />
+      case 'objetivos': return <Objetivos />
       case 'analisis': return <Analisis />
       default: return <Dashboard />
     }

@@ -17,6 +17,13 @@
   --blue: #0a84ff;
   --purple: #bf5af2;
   --yellow: #ff9f0a;
+  --term-bg: #000000;
+  --term-text: #d0d0d0;
+  --term-dim: #6a6a6a;
+  --term-green: #33ff66;
+  --term-amber: #ffb648;
+  --term-red: #ff5a5a;
+  --term-font: 'JetBrains Mono', 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
 }
 
 body {
@@ -138,3 +145,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
     display: none;
   }
 }
+
+@keyframes term-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.term-cursor { animation: term-blink 1s step-end infinite; }
