@@ -51,31 +51,19 @@ export default function App() {
   return (
     <div className="app-layout">
       {/* Sidebar — solo escritorio */}
-      <aside className="sidebar" style={{ display: 'flex', flexDirection: 'column' }}>
-        <div style={{ fontSize: '18px', fontWeight: '700', marginBottom: '24px', padding: '0 8px' }}>
+      <aside className="sidebar">
+        <div className="sidebar-logo">
           💰 Finanzas
         </div>
-        <div style={{ flex: 1 }}>
+        <div className="sidebar-nav">
           {NAV.map(n => (
-            <button key={n.id} onClick={() => setPage(n.id)} style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '10px 12px', borderRadius: '10px', border: 'none',
-              background: page === n.id ? 'var(--blue)' : 'transparent',
-              color: page === n.id ? 'white' : 'var(--text2)',
-              cursor: 'pointer', fontSize: '14px', fontWeight: '500', textAlign: 'left',
-              width: '100%',
-            }}>
+            <button key={n.id} onClick={() => setPage(n.id)}
+                    className={`sidebar-btn${page === n.id ? ' active' : ''}`}>
               <span>{n.icon}</span>{n.label}
             </button>
           ))}
         </div>
-        <button onClick={() => supabase.auth.signOut()} style={{
-          display: 'flex', alignItems: 'center', gap: '10px',
-          padding: '10px 12px', borderRadius: '10px', border: 'none',
-          background: 'transparent', color: 'var(--text2)',
-          cursor: 'pointer', fontSize: '14px', fontWeight: '500', textAlign: 'left',
-          width: '100%',
-        }}>
+        <button onClick={() => supabase.auth.signOut()} className="sidebar-btn sidebar-btn-logout">
           <span>🚪</span>Cerrar sesión
         </button>
       </aside>

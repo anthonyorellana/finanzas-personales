@@ -42,22 +42,28 @@ export default function Analisis() {
   const [categorias, setCategorias] = useState([])
   const [snapshots, setSnapshots] = useState([])
   const [cuentas, setCuentas] = useState([])
+  const [meses, setMeses] = useState([])
+  const [fijos, setFijos] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtroMes, setFiltroMes] = useState('')
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: t }, { data: c }, { data: s }, { data: cu }] = await Promise.all([
+    const [{ data: t }, { data: c }, { data: s }, { data: cu }, { data: m }, { data: f }] = await Promise.all([
       supabase.from('transacciones').select('*, cuentas(tipo, nombre)').order('fecha', { ascending: false }),
       supabase.from('categorias').select('*'),
       supabase.from('snapshots_patrimonio').select('*').order('fecha'),
-      supabase.from('cuentas').select('nombre, tipo, saldo'),
+      supabase.from('cuentas').select('*'),
+      supabase.from('meses').select('*').order('mes'),
+      supabase.from('gastos_fijos').select('*').eq('activo', true),
     ])
     setTransacciones(t || [])
     setCategorias(c || [])
     setSnapshots(s || [])
     setCuentas(cu || [])
+    setMeses(m || [])
+    setFijos(f || [])
     setLoading(false)
   }
 
@@ -118,24 +124,39 @@ export default function Analisis() {
     })
   }
 
-  // Saldos actuales desde cuentas
-  const trLiquidez   = cuentas.filter(c => c.tipo === 'liquidez').reduce((s, c) => s + Number(c.saldo), 0)
-  const etfs         = cuentas.filter(c => c.tipo === 'etf').reduce((s, c) => s + Number(c.saldo), 0)
-  const patrimonio   = cuentas.reduce((s, c) => s + Number(c.saldo), 0)
+  // Saldos actuales desde cuentas (mismo enfoque que Dashboard)
+  const trLiquidez = Number(cuentas.find(c => c.nombre === 'TR — Liquidez')?.saldo || 0)
+  const etfs       = cuentas.filter(c => c.tipo === 'etf').reduce((s, c) => s + Number(c.saldo), 0)
+  const patrimonio = cuentas.reduce((s, c) => s + Number(c.saldo), 0)
 
-  // Ritmos sobre los últimos 3 ciclos válidos
+  // Ritmos — plan primero, histórico como fallback
   const ultimos3 = datosCiclos.slice(-3)
   const media = arr => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0
-  const ritmoColchon    = Math.max(media(ultimos3.map(c => c['Ahorro real'])), 0)
-  const ritmoETFs       = media(ultimos3.map(c => c.aportadoETFs))
+
+  const mesNaturalActual = new Date().toLocaleString('es-ES', { month: 'short', year: 'numeric' })
+    .replace('.', '').replace(/^\w/, c => c.toUpperCase())
+  const mesActualObj       = meses.find(m => m.mes === mesNaturalActual) || meses[meses.length - 1]
+  const ahorroObjetivoPlan = Number(mesActualObj?.ahorro_objetivo || 0)
+  const etfsPlan           = fijos.filter(f => f.es_inversion).reduce((s, f) => s + Number(f.importe), 0)
+
+  const ritmoColchon    = ahorroObjetivoPlan > 0 ? ahorroObjetivoPlan : Math.max(media(ultimos3.map(c => c['Ahorro real'])), 0)
+  const ritmoETFs       = etfsPlan > 0 ? etfsPlan : media(ultimos3.map(c => c.aportadoETFs))
   const ritmoPatrimonio = ritmoColchon + ritmoETFs
 
+  const fuenteColchon    = ahorroObjetivoPlan > 0 ? 'plan actual' : 'media histórica'
+  const fuenteETFs       = etfsPlan > 0 ? 'plan actual' : 'media histórica'
+  const fuentePatrimonio = (ahorroObjetivoPlan > 0 && etfsPlan > 0) ? 'plan actual' : 'media histórica'
+
   const saldosActualesMap = { trLiquidez, etfs, patrimonio }
-  const ritmosMap = { colchon: ritmoColchon, etfs: ritmoETFs, patrimonio: ritmoPatrimonio }
+  const ritmosMap = {
+    colchon:    { valor: ritmoColchon,    fuente: fuenteColchon    },
+    etfs:       { valor: ritmoETFs,       fuente: fuenteETFs       },
+    patrimonio: { valor: ritmoPatrimonio, fuente: fuentePatrimonio },
+  }
 
   const predicciones = METAS.map(meta => {
     const actual = saldosActualesMap[meta.actual] || 0
-    const ritmoValor = ritmosMap[meta.ritmo] || 0
+    const { valor: ritmoValor, fuente: ritmoFuente } = ritmosMap[meta.ritmo]
     const falta = meta.objetivo - actual
     const cumplida = falta <= 0
     const ciclosRestantes = (!cumplida && ritmoValor > 0) ? Math.ceil(falta / ritmoValor) : null
@@ -145,7 +166,7 @@ export default function Analisis() {
       return d.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })
         .replace('.', '').replace(/^\w/, c => c.toUpperCase())
     })() : null
-    return { ...meta, actual, falta, cumplida, ritmoValor, ciclosRestantes, fechaEstimada }
+    return { ...meta, actual, falta, cumplida, ritmoValor, ritmoFuente, ciclosRestantes, fechaEstimada }
   })
 
   const totalIngresos = datosCiclos.reduce((s, c) => s + c.ingresosCiclo, 0)
@@ -245,6 +266,7 @@ export default function Analisis() {
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text2)', marginTop: '4px' }}>
                       ~{meta.ciclosRestantes} ciclos · {fmt(meta.ritmoValor)}/ciclo
+                      <span style={{ opacity: 0.6 }}> · ritmo basado en {meta.ritmoFuente}</span>
                     </div>
                   </>
                 ) : (

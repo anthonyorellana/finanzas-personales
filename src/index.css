@@ -70,6 +70,43 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
   z-index: 999;
 }
 
+/* ── SIDEBAR CONTENT ── */
+.sidebar-logo {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  padding: 0 8px;
+}
+
+.sidebar-nav {
+  flex: 1;
+}
+
+.sidebar-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  width: 100%;
+}
+
+.sidebar-btn.active {
+  background: var(--blue);
+  color: white;
+}
+
+.sidebar-btn-logout {
+  /* Semánticamente separado; hereda todos los estilos de .sidebar-btn */
+}
+
 /* ── DESKTOP (>768px) ── */
 @media (min-width: 769px) {
   .app-layout {
