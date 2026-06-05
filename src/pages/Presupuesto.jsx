@@ -111,6 +111,12 @@ export default function Presupuesto() {
     load()
   }
 
+  async function toggleAhorroApartado() {
+    if (!mesActual) return
+    await supabase.from('meses').update({ ahorro_apartado: !mesActual.ahorro_apartado }).eq('id', mesActual.id)
+    load()
+  }
+
   async function reiniciarCiclo() {
     if (!confirm('¿Reiniciar el ciclo? Se desmarcarán todos los gastos fijos como no pagados.')) return
     await supabase.from('gastos_fijos').update({ pagado_ciclo: false }).eq('activo', true)
@@ -417,6 +423,29 @@ export default function Presupuesto() {
             </div>
           </div>
         ))}
+        {mesActual && Number(mesActual.ahorro_objetivo) > 0 && (
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '10px 0', borderBottom: '1px solid var(--border)',
+            opacity: mesActual.ahorro_apartado ? 0.6 : 1,
+          }}>
+            <span style={{ fontSize: '14px' }}>
+              {mesActual.ahorro_apartado && <span style={{ color: 'var(--green)', marginRight: '6px' }}>✓</span>}
+              💾 Ahorro al colchón
+              <span style={{ fontSize: '11px', color: 'var(--blue)', marginLeft: '8px' }}>suma patrimonio</span>
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontWeight: '600', color: 'var(--blue)' }}>{fmt(mesActual.ahorro_objetivo)}</span>
+              <button
+                onClick={toggleAhorroApartado}
+                title={mesActual.ahorro_apartado ? 'Marcar como no apartado' : 'Marcar como apartado'}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '2px' }}
+              >
+                {mesActual.ahorro_apartado ? '✅' : '⬜'}
+              </button>
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '14px', fontWeight: '700' }}>
           <span>TOTAL FIJOS</span>
           <span style={{ color: 'var(--red)' }}>{fmt(totalFijos)}</span>
@@ -457,13 +486,20 @@ export default function Presupuesto() {
 
         const ahorroObjetivo = Number(mesActual?.ahorro_objetivo || 0)
 
+        const reEfectivo = /retirada|efectivo|cajero|reintegro|disposici[oó]n/i
         const ocioGastado = txCiclo
-          .filter(t => t.tipo === '⬇ Gasto' && /^(Ocio|Restaurantes)$/i.test(t.categoria || ''))
+          .filter(t => t.tipo === '⬇ Gasto' && (
+            /^(Ocio|Restaurantes)$/i.test(t.categoria || '') ||
+            reEfectivo.test(t.descripcion || '')
+          ))
           .reduce((s, t) => s + Math.abs(Number(t.importe)), 0)
 
-        const saldoRealProyect  = saldoCiclo - fijosPendientes - ahorroObjetivo
-        const disponibleOcio    = ingresosCiclo - totalFijosSinInv - aportadoETFsCiclo - ahorroObjetivo - ocioGastado
+        // Transacciones = solo gastos variables (los fijos se llevan con checks, no como movimiento)
+        const gastosVariables   = gastosCiclo
+        const ahorroRealColchon = ingresosCiclo - totalFijosSinInv - aportadoETFsCiclo - gastosVariables
+        const disponibleOcio    = ahorroRealColchon - ahorroObjetivo
         const ocioXdia          = diasRestantes > 0 ? disponibleOcio / diasRestantes : disponibleOcio
+        const saldoRealProyect  = ahorroRealColchon
 
         // Agrupación por categoría
         const porCat = {}
@@ -564,13 +600,16 @@ export default function Presupuesto() {
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: '120px', background: 'var(--bg3)', borderRadius: '12px', padding: '14px' }}>
-                    <div style={{ fontSize: '11px', color: 'var(--text2)', marginBottom: '6px' }}>📊 Saldo real proyectado</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text2)', marginBottom: '6px' }}>💾 Al colchón proyectado</div>
                     <div style={{ fontSize: '18px', fontWeight: '700', color: saldoRealProyect >= 0 ? 'var(--green)' : 'var(--red)' }}>
                       {saldoRealProyect >= 0 ? '+' : ''}{fmt(saldoRealProyect)}
                     </div>
                     {ahorroObjetivo > 0 && (
-                      <div style={{ fontSize: '10px', color: 'var(--text2)', marginTop: '3px' }}>
-                        reserva: {fmt(ahorroObjetivo)}
+                      <div style={{ fontSize: '10px', marginTop: '3px',
+                        color: saldoRealProyect >= ahorroObjetivo ? 'var(--green)' : 'var(--red)' }}>
+                        {saldoRealProyect >= ahorroObjetivo
+                          ? `✓ objetivo ${fmt(ahorroObjetivo)} cubierto`
+                          : `⚠️ objetivo ${fmt(ahorroObjetivo)} en riesgo`}
                       </div>
                     )}
                   </div>

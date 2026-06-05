@@ -39,6 +39,13 @@ function sep(label, count, width = 50) {
   return line + '─'.repeat(Math.max(0, width - line.length))
 }
 
+const ART_FONT = {
+  colchon_completo: '6px',
+  primera_meta_inv: '9px',
+  patrimonio_10k:   '8px',
+  patrimonio_25k:   '8px',
+}
+
 const OBJETIVOS = [
   { id: 'colchon_completo', nombre: 'Colchón completo',
     subtitulo: 'fondo de emergencia · 6 meses de gastos',
@@ -175,25 +182,37 @@ export default function Objetivos() {
       </div>
 
       {/* Objetivos activos */}
-      {objetivosCalc.filter(o => !o.cumplido).map(o => (
-        <div key={o.id} style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', marginBottom: '28px' }}>
-          {/* Arte ASCII lateral — solo escritorio */}
-          {!isNarrow && ART[o.id] && (
-            <pre style={{
-              color: 'rgba(51,255,102,0.35)',
-              fontSize: '7px',
-              lineHeight: '1.15',
-              margin: 0,
-              flexShrink: 0,
-              userSelect: 'none',
-              whiteSpace: 'pre',
-              fontFamily: 'var(--term-font)',
+      {objetivosCalc.filter(o => !o.cumplido).map((o, idx, arr) => (
+        <div key={o.id} style={{
+          display: 'grid',
+          gridTemplateColumns: isNarrow ? '1fr' : '180px 1fr',
+          gap: '24px',
+          paddingBottom: '20px',
+          marginBottom: '20px',
+          borderBottom: idx < arr.length - 1 ? '1px dashed var(--term-dim)' : 'none',
+        }}>
+          {/* Marco de arte 180×160 — centra cualquier tamaño */}
+          {ART[o.id] && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              minHeight: isNarrow ? 'auto' : '160px',
             }}>
-              {ART[o.id].trim()}
-            </pre>
+              <pre style={{
+                color: 'var(--term-green)',
+                opacity: 0.85,
+                fontSize: ART_FONT[o.id] || '8px',
+                lineHeight: '1',
+                margin: 0,
+                userSelect: 'none',
+                whiteSpace: 'pre',
+                fontFamily: 'var(--term-font)',
+              }}>
+                {ART[o.id].trim()}
+              </pre>
+            </div>
           )}
-          {/* Contenido del objetivo */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Contenido — centrado verticalmente respecto a la ilustración */}
+          <div style={{ alignSelf: 'center', minWidth: 0 }}>
           <div style={{ marginBottom: '2px' }}>
             <span style={s.green}>▸ {o.id}</span>
             <span style={s.dim}> — </span>

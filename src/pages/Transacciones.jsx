@@ -22,6 +22,7 @@ export default function Transacciones() {
   const [cuentaImport, setCuentaImport] = useState('')
   const [editCategoria, setEditCategoria] = useState(null)
   const [editTipo, setEditTipo] = useState(null)
+  const [editCuentaTx, setEditCuentaTx] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -89,6 +90,12 @@ export default function Transacciones() {
   async function guardarTipo(id, tipo) {
     await supabase.from('transacciones').update({ tipo }).eq('id', id)
     setEditTipo(null)
+    load()
+  }
+
+  async function guardarCuentaTx(id, cuenta_id) {
+    await supabase.from('transacciones').update({ cuenta_id }).eq('id', id)
+    setEditCuentaTx(null)
     load()
   }
 
@@ -211,6 +218,43 @@ export default function Transacciones() {
               ))}
             </div>
             <button onClick={() => setEditTipo(null)} style={{
+              width: '100%', background: 'var(--bg3)', color: 'var(--text2)',
+              border: '1px solid var(--border)', borderRadius: '8px',
+              padding: '10px', cursor: 'pointer',
+            }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal editar cuenta */}
+      {editCuentaTx && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 100, padding: '20px',
+        }}>
+          <div style={{
+            background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '340px',
+          }}>
+            <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '6px' }}>🏦 Cuenta</div>
+            <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '16px', lineHeight: '1.4' }}>
+              {editCuentaTx.descripcion || editCuentaTx.tipo}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+              {cuentas.map(c => (
+                <button key={c.id} onClick={() => guardarCuentaTx(editCuentaTx.id, c.id)}
+                  style={{
+                    background: editCuentaTx.cuenta_id === c.id ? 'var(--blue)' : 'var(--bg3)',
+                    border: '1px solid var(--border)', borderRadius: '8px',
+                    padding: '10px 14px', cursor: 'pointer', color: 'var(--text)',
+                    fontSize: '13px', textAlign: 'left',
+                  }}>
+                  {c.nombre}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setEditCuentaTx(null)} style={{
               width: '100%', background: 'var(--bg3)', color: 'var(--text2)',
               border: '1px solid var(--border)', borderRadius: '8px',
               padding: '10px', cursor: 'pointer',
@@ -416,9 +460,12 @@ export default function Transacciones() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '11px', color: 'var(--text2)' }}>{t.fecha}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text2)', background: 'var(--bg3)', padding: '2px 6px', borderRadius: '4px' }}>
+                  <button onClick={() => setEditCuentaTx(t)} title="Cambiar cuenta" style={{
+                    fontSize: '11px', color: 'var(--text2)', background: 'var(--bg3)',
+                    border: '1px solid var(--border)', padding: '2px 6px', borderRadius: '4px', cursor: 'pointer',
+                  }}>
                     {t.cuentas?.nombre}
-                  </span>
+                  </button>
                   <button onClick={() => setEditTipo(t)} style={{
                     fontSize: '11px', background: 'var(--bg3)',
                     border: '1px solid var(--border)', borderRadius: '4px',
